@@ -1,0 +1,7 @@
+# Admin — Auth Check
+
+### Verify admin auth
+GET {{baseUrl}}/api/admin/me
+Authorization: Bearer {{apiKey}}
+
+###

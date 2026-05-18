@@ -1,0 +1,30 @@
+# Client — Activation
+
+@machineHash = e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+
+### Activate a license
+POST {{baseUrl}}/api/client/activate
+Content-Type: application/json
+
+{
+  "product_code": "my_product",
+  "activation_code": "{{activationCode}}",
+  "machine_hash": "{{machineHash}}",
+  "device_label": "Living Room TV",
+  "client_version": "1.0.0",
+  "platform": "android-tv"
+}
+
+###
+
+### Deactivate a device
+POST {{baseUrl}}/api/client/deactivate
+Content-Type: application/json
+
+{
+  "product_code": "my_product",
+  "activation_code": "{{activationCode}}",
+  "machine_hash": "{{machineHash}}"
+}
+
+###

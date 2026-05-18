@@ -42,11 +42,12 @@ Before production deployment:
 1. Replace `database_id` in `worker/wrangler.toml` with the real D1 database id.
 2. Run migrations against the remote D1 database.
 3. Run `pnpm bootstrap -- --api-key=<long-random-admin-key>`.
-4. Apply the printed SQL to D1.
-5. Store `SIGNING_KEY_ID` and `SIGNING_PRIVATE_JWK` as Worker secrets.
-6. Embed the printed public JWK in the Android TV verifier.
+4. Read `worker/bootstrap.local.json`, then apply its `sql` statements to D1.
+5. Store `signing.key_id` and `signing.private_jwk` as Worker secrets.
+6. Embed `signing.public_jwk` in the Android TV verifier.
 
-Never commit real API keys, private JWKs, Wrangler state, or local D1 databases.
+Never commit real API keys, private JWKs, bootstrap JSON files, Wrangler state, or
+local D1 databases.
 
 ## Core Design
 

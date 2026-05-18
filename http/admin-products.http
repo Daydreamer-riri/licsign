@@ -1,0 +1,44 @@
+# Admin — Products
+
+### List products
+GET {{baseUrl}}/api/admin/products
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Create product
+POST {{baseUrl}}/api/admin/products
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "code": "my_product",
+  "name": "My Product",
+  "description": "A test product",
+  "default_max_devices": 1
+}
+
+###
+
+### Update product
+PATCH {{baseUrl}}/api/admin/products/{{productId}}
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "name": "My Product (Updated)",
+  "default_max_devices": 3
+}
+
+###
+
+### Archive product
+PATCH {{baseUrl}}/api/admin/products/{{productId}}
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "status": "archived"
+}
+
+###

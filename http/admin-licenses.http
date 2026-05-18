@@ -1,0 +1,60 @@
+# Admin — Licenses
+
+### Search licenses (all)
+GET {{baseUrl}}/api/admin/licenses
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Search licenses by status
+GET {{baseUrl}}/api/admin/licenses?status=activated&take=20&skip=0
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Search licenses by product
+GET {{baseUrl}}/api/admin/licenses?product_id={{productId}}
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Search licenses by batch
+GET {{baseUrl}}/api/admin/licenses?batch_id={{batchId}}
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Read single license
+GET {{baseUrl}}/api/admin/licenses/{{licenseId}}
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Disable license
+POST {{baseUrl}}/api/admin/licenses/{{licenseId}}/disable
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Enable license
+POST {{baseUrl}}/api/admin/licenses/{{licenseId}}/enable
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Revoke license
+POST {{baseUrl}}/api/admin/licenses/{{licenseId}}/revoke
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "reason": "Payment refunded"
+}
+
+###
+
+### Export licenses as CSV
+GET {{baseUrl}}/api/admin/licenses/export.csv
+Authorization: Bearer {{apiKey}}
+
+###

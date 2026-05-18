@@ -14,7 +14,8 @@
     "test": "vitest run",
     "db:migrate:local": "wrangler d1 migrations apply license_service --local --config worker/wrangler.toml",
     "db:migrate:remote": "wrangler d1 migrations apply license_service --remote --config worker/wrangler.toml",
-    "bootstrap": "node worker/scripts/bootstrap.mjs"
+    "bootstrap": "node worker/scripts/bootstrap.mjs",
+    "dev:setup": "node worker/scripts/dev-setup.mjs"
   },
   "dependencies": {
     "hono": "^4.7.11",

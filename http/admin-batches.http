@@ -1,0 +1,29 @@
+# Admin — Batches
+
+### List batches
+GET {{baseUrl}}/api/admin/batches
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Create batch
+POST {{baseUrl}}/api/admin/batches
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "product_id": "{{productId}}",
+  "batch_name": "Initial batch",
+  "quantity": 10,
+  "max_devices": 1,
+  "code_prefix": "TV",
+  "notes": "First batch for testing"
+}
+
+###
+
+### Read batch detail
+GET {{baseUrl}}/api/admin/batches/{{batchId}}
+Authorization: Bearer {{apiKey}}
+
+###

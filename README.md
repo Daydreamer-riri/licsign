@@ -55,19 +55,20 @@ Apply D1 migrations:
 pnpm db:migrate:remote
 ```
 
-Bootstrap the first issuer, admin API key hash, and signing key pair:
+Bootstrap the first issuer, admin API key hash, and signing key pair. This writes
+`worker/bootstrap.local.json`, which is ignored by git because it contains secrets:
 
 ```sh
 pnpm bootstrap -- --api-key=replace-with-a-long-random-admin-key
 ```
 
-Apply the SQL printed by `bootstrap` to the remote D1 database:
+Apply the SQL from `worker/bootstrap.local.json` to the remote D1 database:
 
 ```sh
 wrangler d1 execute license_service --remote --config worker/wrangler.toml --command "<paste printed INSERT SQL here>"
 ```
 
-Set the Worker secrets printed by `bootstrap`:
+Set the Worker secrets from `worker/bootstrap.local.json`:
 
 ```sh
 wrangler secret put SIGNING_KEY_ID --config worker/wrangler.toml
@@ -142,16 +143,15 @@ or similar tools.
 ```sh
 fnm use
 pnpm install
-pnpm db:migrate:local
-pnpm bootstrap -- --api-key=replace-with-a-long-random-admin-key
+pnpm bootstrap -- --api-key=dev-admin-key
+pnpm dev:setup
 ```
 
-Apply the SQL printed by `bootstrap` with `wrangler d1 execute`, then set the printed
-`SIGNING_KEY_ID` and `SIGNING_PRIVATE_JWK` as Worker secrets before deployment.
+`pnpm dev:setup` reads `worker/bootstrap.local.json`, applies local D1 migrations,
+seeds the local issuer/API key rows, and writes `worker/.dev.vars` for local signing
+secrets.
 
 ```sh
-wrangler secret put SIGNING_KEY_ID --config worker/wrangler.toml
-wrangler secret put SIGNING_PRIVATE_JWK --config worker/wrangler.toml
 pnpm dev
 ```
 

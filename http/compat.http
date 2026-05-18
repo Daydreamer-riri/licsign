@@ -1,0 +1,25 @@
+# LicenseGate Compatibility
+
+### Verify via GET
+GET {{baseUrl}}/license/{{userId}}/{{activationCode}}/verify
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Verify via GET with challenge
+GET {{baseUrl}}/license/{{userId}}/{{activationCode}}/verify?challenge=random-challenge-string
+Authorization: Bearer {{apiKey}}
+
+###
+
+### Verify via POST
+POST {{baseUrl}}/license/{{userId}}/{{activationCode}}/verify
+Authorization: Bearer {{apiKey}}
+Content-Type: application/json
+
+{
+  "scope": "feature:premium",
+  "challenge": "random-challenge-string"
+}
+
+###
