@@ -27,8 +27,26 @@ export interface ProductRow {
   description: string;
   status: ProductStatus;
   default_max_devices: number;
+  trial_enabled: number;
+  trial_start_at: string | null;
+  trial_end_at: string | null;
+  trial_token_ttl_seconds: number | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface TrialActivationRow {
+  id: string;
+  issuer_id: string;
+  product_id: string;
+  machine_hash: string;
+  device_label: string | null;
+  client_version: string | null;
+  platform: string | null;
+  first_seen_at: string;
+  last_seen_at: string;
+  last_token_expires_at: string;
+  token_count: number;
 }
 
 export interface LicenseRow {

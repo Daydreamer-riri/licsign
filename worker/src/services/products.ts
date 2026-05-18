@@ -5,6 +5,48 @@ import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import { writeAuditLog } from "./audit";
 
+interface ResolvedTrial {
+  enabled: boolean;
+  start_at: string | null;
+  end_at: string | null;
+  ttl_seconds: number | null;
+}
+
+function pick<T>(next: T | undefined, prev: T | null | undefined): T | null {
+  if (next !== undefined) return next;
+  return prev ?? null;
+}
+
+function resolveTrialFields(
+  input: {
+    trial_enabled?: boolean;
+    trial_start_at?: string | null;
+    trial_end_at?: string | null;
+    trial_token_ttl_seconds?: number | null;
+  },
+  existing?: ProductRow
+): ResolvedTrial {
+  const enabled = input.trial_enabled ?? (existing ? existing.trial_enabled === 1 : false);
+  const start_at = pick(input.trial_start_at, existing?.trial_start_at);
+  const end_at = pick(input.trial_end_at, existing?.trial_end_at);
+  const ttl_seconds = pick(input.trial_token_ttl_seconds, existing?.trial_token_ttl_seconds);
+
+  if (enabled) {
+    if (!start_at || !end_at || ttl_seconds === null) {
+      throw new ApiError(
+        400,
+        "TRIAL_CONFIG_INCOMPLETE",
+        "trial_enabled requires trial_start_at, trial_end_at, and trial_token_ttl_seconds"
+      );
+    }
+    if (Date.parse(start_at) >= Date.parse(end_at)) {
+      throw new ApiError(400, "TRIAL_CONFIG_INVALID", "trial_start_at must be before trial_end_at");
+    }
+  }
+
+  return { enabled, start_at, end_at, ttl_seconds };
+}
+
 export async function listProducts(db: D1Database, issuerId: string): Promise<ProductRow[]> {
   return all<ProductRow>(
     db
@@ -15,6 +57,7 @@ export async function listProducts(db: D1Database, issuerId: string): Promise<Pr
 
 export async function createProduct(db: D1Database, issuerId: string, actorId: string, body: unknown): Promise<ProductRow> {
   const input = createProductSchema.parse(body);
+  const trial = resolveTrialFields(input);
   const now = nowIso();
   const id = createId("prd");
 
@@ -23,10 +66,25 @@ export async function createProduct(db: D1Database, issuerId: string, actorId: s
       db
         .prepare(
           `INSERT INTO products
-            (id, issuer_id, code, name, description, status, default_max_devices, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?)`
+            (id, issuer_id, code, name, description, status, default_max_devices,
+             trial_enabled, trial_start_at, trial_end_at, trial_token_ttl_seconds,
+             created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`
         )
-        .bind(id, issuerId, input.code, input.name, input.description, input.default_max_devices, now, now)
+        .bind(
+          id,
+          issuerId,
+          input.code,
+          input.name,
+          input.description,
+          input.default_max_devices,
+          trial.enabled ? 1 : 0,
+          trial.start_at,
+          trial.end_at,
+          trial.ttl_seconds,
+          now,
+          now
+        )
     );
   } catch (error) {
     if (String(error).includes("UNIQUE")) {
@@ -42,7 +100,7 @@ export async function createProduct(db: D1Database, issuerId: string, actorId: s
     action: "product.create",
     targetType: "product",
     targetId: id,
-    details: { code: input.code }
+    details: { code: input.code, trial_enabled: trial.enabled }
   });
 
   const product = await first<ProductRow>(db.prepare("SELECT * FROM products WHERE id = ?").bind(id));
@@ -67,6 +125,8 @@ export async function updateProduct(
     throw new ApiError(404, "NOT_FOUND", "Product not found");
   }
 
+  const trial = resolveTrialFields(input, existing);
+
   const next = {
     code: input.code ?? existing.code,
     name: input.name ?? existing.name,
@@ -80,7 +140,9 @@ export async function updateProduct(
       db
         .prepare(
           `UPDATE products
-           SET code = ?, name = ?, description = ?, status = ?, default_max_devices = ?, updated_at = ?
+           SET code = ?, name = ?, description = ?, status = ?, default_max_devices = ?,
+               trial_enabled = ?, trial_start_at = ?, trial_end_at = ?, trial_token_ttl_seconds = ?,
+               updated_at = ?
            WHERE id = ? AND issuer_id = ?`
         )
         .bind(
@@ -89,6 +151,10 @@ export async function updateProduct(
           next.description,
           next.status,
           next.default_max_devices,
+          trial.enabled ? 1 : 0,
+          trial.start_at,
+          trial.end_at,
+          trial.ttl_seconds,
           nowIso(),
           productId,
           issuerId

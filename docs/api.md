@@ -65,13 +65,54 @@ Stable activation errors:
 - `LICENSE_REVOKED`
 - `LICENSE_EXPIRED`
 - `PRODUCT_MISMATCH`
+- `PRODUCT_NOT_FOUND`
 - `DEVICE_LIMIT_REACHED`
+- `TRIAL_INACTIVE`
 - `BAD_REQUEST`
 - `SERVER_ERROR`
 
 ### `POST /api/client/deactivate`
 
 Marks a machine activation as deactivated, allowing the seat to be reused.
+
+### `POST /api/client/trial`
+
+Issues a signed trial license for the requesting machine when the product's trial
+window is active. **No activation code required.**
+
+Request:
+
+```json
+{
+  "product_code": "my_product",
+  "machine_hash": "64-character-sha256-hex",
+  "device_label": "Living Room TV",
+  "client_version": "1.0.0",
+  "platform": "android-tv"
+}
+```
+
+Response shape matches `POST /api/client/activate`, with two differences in the
+`license` payload:
+
+- `kind` is `"trial"` (activation tokens omit this field or set it to `"license"`)
+- `license_id` is `null` (trial tokens are not backed by a `licenses` row)
+- `expires_at` is `now + product.trial_token_ttl_seconds`
+
+The trial endpoint is idempotent for the same `machine_hash`: repeated calls update
+`last_seen_at` and re-issue a fresh token without consuming any quota. Different
+`machine_hash` values each get their own trial activation row.
+
+Errors:
+
+- `PRODUCT_NOT_FOUND` — no active product with that `product_code`
+- `TRIAL_INACTIVE` — trial disabled or current time outside the trial window
+- `BAD_REQUEST` — request shape invalid
+
+When the trial window closes, previously issued tokens remain valid offline until
+their TTL expires, but the endpoint stops issuing new ones. Clients that want to
+continue beyond the window must fall back to `POST /api/client/activate` with a
+purchased activation code.
 
 ## Admin API
 
@@ -88,9 +129,20 @@ Create product body:
   "code": "my_product",
   "name": "My Product",
   "description": "",
-  "default_max_devices": 1
+  "default_max_devices": 1,
+  "trial_enabled": false,
+  "trial_start_at": null,
+  "trial_end_at": null,
+  "trial_token_ttl_seconds": null
 }
 ```
+
+The four `trial_*` fields are optional. When `trial_enabled` is `true`, all three
+of `trial_start_at`, `trial_end_at`, and `trial_token_ttl_seconds` are required;
+`trial_start_at` must be strictly before `trial_end_at`. TTL accepts 60 seconds to
+90 days. `PATCH /api/admin/products/:id` accepts the same fields; toggling
+`trial_enabled` to `false` stops new trial issuance immediately while existing
+trial tokens remain valid offline until their TTL expires.
 
 ### Batches
 

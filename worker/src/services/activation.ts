@@ -12,7 +12,7 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
   const input = activateSchema.parse(body);
   const license = await findLicenseByCode(env.DB, input.activation_code);
   if (!license) {
-    throw clientError(404, "INVALID_CODE", "Activation code was not found");
+    throw new ApiError<ClientActivationError>(404, "INVALID_CODE", "Activation code was not found");
   }
 
   ensureLicenseCanActivate(license, input.product_code);
@@ -44,7 +44,7 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
   );
 
   if ((activeCount?.count ?? 0) >= license.max_devices) {
-    throw clientError(409, "DEVICE_LIMIT_REACHED", "Device limit reached");
+    throw new ApiError<ClientActivationError>(409, "DEVICE_LIMIT_REACHED", "Device limit reached");
   }
 
   if (existing?.status === "deactivated") {
@@ -114,10 +114,10 @@ export async function deactivate(env: Env, body: unknown) {
   const input = deactivateSchema.parse(body);
   const license = await findLicenseByCode(env.DB, input.activation_code);
   if (!license) {
-    throw clientError(404, "INVALID_CODE", "Activation code was not found");
+    throw new ApiError<ClientActivationError>(404, "INVALID_CODE", "Activation code was not found");
   }
   if (license.product_code !== input.product_code) {
-    throw clientError(409, "PRODUCT_MISMATCH", "Activation code does not belong to this product");
+    throw new ApiError<ClientActivationError>(409, "PRODUCT_MISMATCH", "Activation code does not belong to this product");
   }
 
   const now = nowIso();
@@ -161,16 +161,16 @@ async function findLicenseByCode(db: D1Database, activationCode: string): Promis
 
 function ensureLicenseCanActivate(license: LicenseWithProductRow, productCode: string): void {
   if (license.product_code !== productCode || license.product_status !== "active") {
-    throw clientError(409, "PRODUCT_MISMATCH", "Activation code does not belong to this active product");
+    throw new ApiError<ClientActivationError>(409, "PRODUCT_MISMATCH", "Activation code does not belong to this active product");
   }
   if (license.status === "disabled") {
-    throw clientError(403, "LICENSE_DISABLED", "License is disabled");
+    throw new ApiError<ClientActivationError>(403, "LICENSE_DISABLED", "License is disabled");
   }
   if (license.status === "revoked") {
-    throw clientError(403, "LICENSE_REVOKED", "License is revoked");
+    throw new ApiError<ClientActivationError>(403, "LICENSE_REVOKED", "License is revoked");
   }
   if (license.expires_at && new Date(license.expires_at).getTime() <= Date.now()) {
-    throw clientError(403, "LICENSE_EXPIRED", "License is expired");
+    throw new ApiError<ClientActivationError>(403, "LICENSE_EXPIRED", "License is expired");
   }
 }
 
@@ -200,6 +200,3 @@ async function issueSignedLicense(
   };
 }
 
-function clientError(status: number, code: ClientActivationError, message: string): ApiError<ClientActivationError> {
-  return new ApiError(status, code, message);
-}

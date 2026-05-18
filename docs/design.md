@@ -53,6 +53,36 @@ Reasoning:
 The private JWK is stored as `SIGNING_PRIVATE_JWK` in Cloudflare secrets. The public
 key is embedded in the Android TV app.
 
+## Trial Mode
+
+Each product carries a per-product trial switch (`trial_enabled`) plus a time
+window (`trial_start_at` / `trial_end_at`) and a per-token TTL
+(`trial_token_ttl_seconds`). While the window is active, clients can call
+`POST /api/client/trial` with only `product_code + machine_hash` — no activation
+code required — and receive a signed offline license whose payload sets
+`kind: "trial"` and `license_id: null`.
+
+Trial tokens carry an **independent TTL**, not tied to the trial window itself.
+This gives three useful properties:
+
+1. When the trial window ends, in-flight tokens stay valid offline until their TTL
+   expires, so existing users do not see an instant blackout.
+2. The window can be extended or shortened without affecting any already-issued
+   token; the change only takes effect on the next renewal.
+3. Renewal is automatic from the client's perspective — the same endpoint either
+   succeeds (still in window) or returns `TRIAL_INACTIVE` (window closed), at
+   which point the client falls back to the paid `POST /api/client/activate`.
+
+Trial activations live in a separate `trial_activations` table keyed by
+`(product_id, machine_hash)`. They never share rows with paid `licenses` /
+`activations`, which keeps accounting, statistics, and audit log streams clean.
+The trial endpoint is fully idempotent for the same `machine_hash`; it never
+consumes paid-license quota.
+
+V1 does not throttle the trial endpoint. If trial-token harvesting becomes a real
+problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
+`products.trial_recovery_enabled` flag without breaking the existing API.
+
 ## Revocation Tradeoff
 
 Revocation affects future online operations: activation, refresh, and the compatibility

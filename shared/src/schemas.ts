@@ -11,11 +11,28 @@ export const productCodeSchema = z
   .max(80)
   .regex(/^[A-Za-z0-9][A-Za-z0-9_-]*$/);
 
+export const TRIAL_TOKEN_TTL_MIN_SECONDS = 60;
+export const TRIAL_TOKEN_TTL_MAX_SECONDS = 60 * 60 * 24 * 90;
+
+const trialFieldsSchema = {
+  trial_enabled: z.boolean().optional(),
+  trial_start_at: z.string().datetime().nullable().optional(),
+  trial_end_at: z.string().datetime().nullable().optional(),
+  trial_token_ttl_seconds: z
+    .number()
+    .int()
+    .min(TRIAL_TOKEN_TTL_MIN_SECONDS)
+    .max(TRIAL_TOKEN_TTL_MAX_SECONDS)
+    .nullable()
+    .optional()
+};
+
 export const createProductSchema = z.object({
   code: productCodeSchema,
   name: z.string().min(1).max(160),
   description: z.string().max(2000).optional().default(""),
-  default_max_devices: z.number().int().min(1).max(100).optional().default(1)
+  default_max_devices: z.number().int().min(1).max(100).optional().default(1),
+  ...trialFieldsSchema
 });
 
 export const updateProductSchema = createProductSchema
@@ -56,6 +73,14 @@ export const deactivateSchema = z.object({
   product_code: productCodeSchema,
   activation_code: z.string().min(1).max(160),
   machine_hash: machineHashSchema
+});
+
+export const trialRequestSchema = z.object({
+  product_code: productCodeSchema,
+  machine_hash: machineHashSchema,
+  device_label: z.string().max(160).nullable().optional(),
+  client_version: z.string().max(80).nullable().optional(),
+  platform: z.string().max(80).nullable().optional()
 });
 
 export const licenseSearchSchema = z.object({

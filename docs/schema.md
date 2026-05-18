@@ -1,8 +1,9 @@
 # Schema
 
-The canonical source of truth is `worker/migrations/0001_initial.sql`. This document
-provides a readable reference with column details, constraints, relationships, and
-index rationale.
+The canonical source of truth is `worker/migrations/0001_initial.sql` (plus later
+numbered migration files such as `0002_product_trial.sql`). This document
+provides a readable reference with column details, constraints, relationships,
+and index rationale.
 
 ## ER Diagram
 
@@ -12,9 +13,11 @@ issuers ──1:N── api_keys
          ──1:N── license_batches
          ──1:N── licenses
          ──1:N── audit_logs
+         ──1:N── trial_activations
 
 products ──1:N── license_batches
          ──1:N── licenses
+         ──1:N── trial_activations
 
 license_batches ──1:N── licenses
 
@@ -72,6 +75,10 @@ Licensed products that activation codes belong to.
 | description | TEXT | NOT NULL, DEFAULT '' | Optional description |
 | status | TEXT | NOT NULL, CHECK IN ('active', 'archived') | Product lifecycle |
 | default_max_devices | INTEGER | NOT NULL, DEFAULT 1 | Default device limit for batches/licenses created under this product |
+| trial_enabled | INTEGER | NOT NULL, DEFAULT 0 | 0/1 toggle for the per-product trial window |
+| trial_start_at | TEXT | nullable | ISO 8601; required when `trial_enabled = 1` |
+| trial_end_at | TEXT | nullable | ISO 8601; required when `trial_enabled = 1`, must be strictly after `trial_start_at` |
+| trial_token_ttl_seconds | INTEGER | nullable | Per-token TTL for trial JWS; required when `trial_enabled = 1`; bounded 60s – 90d at the API layer |
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
 | updated_at | TEXT | NOT NULL | ISO 8601 timestamp |
 
@@ -165,6 +172,35 @@ Indexes:
 - `idx_activations_license_id` — list activations by license
 - `idx_activations_machine_hash` — lookup device across licenses
 - `idx_activations_status` — filter active vs deactivated
+
+## trial_activations
+
+Tracks devices that have requested a trial license under a product. Independent
+from `activations` because trial tokens are not backed by a `licenses` row.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TEXT | PRIMARY KEY | Internal identifier |
+| issuer_id | TEXT | NOT NULL, FK → issuers(id) ON DELETE CASCADE | Owning issuer (denormalized from product for fast filtering) |
+| product_id | TEXT | NOT NULL, FK → products(id) ON DELETE CASCADE | Product the trial was issued for |
+| machine_hash | TEXT | NOT NULL | SHA-256 hex digest of client hardware identifiers |
+| device_label | TEXT | nullable | User-provided name |
+| client_version | TEXT | nullable | App version at first trial |
+| platform | TEXT | nullable | Client platform (e.g. "android-tv") |
+| first_seen_at | TEXT | NOT NULL | First trial issuance for this device under this product |
+| last_seen_at | TEXT | NOT NULL | Most recent trial issuance |
+| last_token_expires_at | TEXT | NOT NULL | `issued_at + product.trial_token_ttl_seconds` of the most recent token |
+| token_count | INTEGER | NOT NULL, DEFAULT 1 | Total trial tokens issued to this device (incremented on every renewal) |
+
+Constraints:
+
+- UNIQUE (product_id, machine_hash) — one trial activation row per device per product
+
+Indexes:
+
+- `idx_trial_activations_issuer_id` — list trials by issuer
+- `idx_trial_activations_product_id` — list trials by product (count trial users, etc.)
+- `idx_trial_activations_machine_hash` — lookup a device across products
 
 ## audit_logs
 

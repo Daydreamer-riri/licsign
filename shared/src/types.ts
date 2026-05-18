@@ -10,8 +10,10 @@ export type ClientActivationError =
   | "LICENSE_REVOKED"
   | "LICENSE_EXPIRED"
   | "PRODUCT_MISMATCH"
+  | "PRODUCT_NOT_FOUND"
   | "DEVICE_LIMIT_REACHED"
   | "INVALID_MACHINE"
+  | "TRIAL_INACTIVE"
   | "BAD_REQUEST"
   | "SERVER_ERROR";
 
@@ -24,9 +26,12 @@ export type LicenseGateValidationResult =
   | "IP_LIMIT_EXCEEDED"
   | "RATE_LIMIT_EXCEEDED";
 
+export type OfflineLicenseKind = "license" | "trial";
+
 export interface OfflineLicensePayload {
   version: 1;
-  license_id: string;
+  kind?: OfflineLicenseKind;
+  license_id: string | null;
   product_code: string;
   machine_hash: string;
   features: string[];

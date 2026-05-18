@@ -49,3 +49,24 @@ Verification steps:
 6. Verify with embedded public key and `SHA256withECDSA`.
 
 Keep the public key in app resources or code. Never ship the private key.
+
+## Trial Tokens
+
+The same verification flow works for trial tokens issued by
+`POST /api/client/trial`. Two payload fields differ:
+
+- `kind == "trial"` (paid activation tokens omit `kind` or set it to `"license"`)
+- `license_id == null`
+
+The signature, header, `machine_hash`, `expires_at`, and `issuer` checks are
+identical. Clients can use `kind` to drive UI affordances such as a "Trial,
+expires in N days" badge, or to decide whether to surface a purchase prompt
+when the token nears expiry.
+
+Trial tokens carry a short independent TTL (configured per product). When a
+trial token is about to expire, the client should call
+`POST /api/client/trial` again with the same `product_code + machine_hash`:
+
+- If the product's trial window is still open, the server returns a fresh token.
+- If the window has closed, the server returns `TRIAL_INACTIVE` and the client
+  should prompt the user to enter a paid activation code.

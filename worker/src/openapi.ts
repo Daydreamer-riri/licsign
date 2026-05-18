@@ -23,6 +23,17 @@ export const openApiDocument = {
         }
       }
     },
+    "/api/client/trial": {
+      post: {
+        summary:
+          "Issue a short-TTL signed trial license without an activation code, while the product trial window is active",
+        responses: {
+          "200": { description: "Signed trial license" },
+          "403": { description: "TRIAL_INACTIVE: trial disabled or outside trial window" },
+          "404": { description: "PRODUCT_NOT_FOUND" }
+        }
+      }
+    },
     "/api/admin/products": {
       get: { summary: "List products", responses: { "200": { description: "Products" } } },
       post: { summary: "Create product", responses: { "200": { description: "Product" } } }
