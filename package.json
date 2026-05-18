@@ -1,0 +1,30 @@
+{
+  "name": "licsign",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "scripts": {
+    "dev": "wrangler dev --config worker/wrangler.toml",
+    "deploy": "wrangler deploy --config worker/wrangler.toml",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run",
+    "db:migrate:local": "wrangler d1 migrations apply license_service --local --config worker/wrangler.toml",
+    "db:migrate:remote": "wrangler d1 migrations apply license_service --remote --config worker/wrangler.toml",
+    "bootstrap": "node worker/scripts/bootstrap.mjs"
+  },
+  "dependencies": {
+    "hono": "^4.7.11",
+    "zod": "^3.25.57"
+  },
+  "devDependencies": {
+    "@cloudflare/vitest-pool-workers": "^0.8.28",
+    "@cloudflare/workers-types": "^4.20260518.0",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.2",
+    "wrangler": "^4.18.0"
+  }
+}
