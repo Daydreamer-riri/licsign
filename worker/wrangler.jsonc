@@ -1,0 +1,29 @@
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "license-service",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-05-18",
+  "vars": {
+    "LICENSE_ISSUER": "licsign",
+    "CORS_ORIGIN": "*"
+  },
+  // database_id is a placeholder. Maintainers should run `wrangler d1 create license_service`
+  // once and paste the returned UUID below so local `pnpm deploy` works without prompts.
+  // When users click the Deploy to Cloudflare button, Cloudflare provisions a fresh D1 in
+  // their account and rewrites this id in the forked repo automatically.
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "license_service",
+      "database_id": "replace-with-cloudflare-d1-database-id",
+      "migrations_dir": "./migrations"
+    }
+  ],
+  "observability": {
+    "enabled": true,
+    "head_sampling_rate": 1
+  }
+  // Secrets are set with `wrangler secret put` (or `pnpm setup:remote`):
+  //   - SIGNING_KEY_ID
+  //   - SIGNING_PRIVATE_JWK
+}

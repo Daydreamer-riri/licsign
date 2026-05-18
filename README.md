@@ -16,13 +16,42 @@ The V1 service is API-only:
 
 ### One-click deploy
 
-Click the button below to deploy this Worker to Cloudflare:
+[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/Daydreamer-riri/licsign)
 
-[![Deploy to Cloudflare Workers](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/your-org/licsign)
+The button above deploys this exact repository. If you have forked `licsign` and
+want the button to deploy your fork, edit this README and replace
+`Daydreamer-riri/licsign` in the link with your `<owner>/<repo>` path, commit and
+push, then click the button on your fork.
 
-Note: replace `https://github.com/your-org/licsign` in the button link with your
-actual Git repository URL. Edit `README.md`, update the link, push the repository,
-then click the button to let Cloudflare clone and deploy the project.
+When a user clicks the button, Cloudflare forks the repository to their account,
+provisions a new D1 database, rewrites the `database_id` in `worker/wrangler.jsonc`
+to the new database, commits that change to the fork, and runs `pnpm deploy`
+(which applies migrations before deploying the Worker).
+
+After the button finishes, clone the fork (so you pick up the rewritten
+`database_id`) and complete the one-time bootstrap from that local checkout:
+
+```sh
+git clone https://github.com/<your-user>/licsign.git
+cd licsign
+pnpm install
+pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key
+```
+
+If you already cloned the fork before clicking the button, run `git pull` first
+so the new `database_id` is in your working tree before `pnpm setup:remote`.
+
+`setup:remote` applies D1 migrations, then checks whether the issuer already
+exists on the remote database. On first run it inserts the initial `issuers` and
+`api_keys` rows; on every run it generates a fresh signing key pair and uploads
+`SIGNING_KEY_ID` and `SIGNING_PRIVATE_JWK` as Worker secrets. It prints the
+admin API key (first run only), the public user id, and the public JWK to embed
+in the Android TV verifier.
+
+Re-running `pnpm setup:remote` rotates the signing keys without touching the
+existing issuer or admin API key. After a rotation, redistribute the new public
+JWK to clients before previously signed licenses need to be re-verified — old
+signatures will no longer verify against the new key.
 
 ### Manual deploy
 
@@ -34,69 +63,50 @@ fnm use
 pnpm install
 ```
 
-Create a D1 database:
+Create a D1 database in your Cloudflare account and paste the returned id into
+`worker/wrangler.jsonc`:
 
 ```sh
 wrangler d1 create license_service
 ```
 
-Copy the returned `database_id` into `worker/wrangler.toml`:
-
-```toml
-[[d1_databases]]
-binding = "DB"
-database_name = "license_service"
-database_id = "your-real-d1-database-id"
+```jsonc
+"d1_databases": [
+  {
+    "binding": "DB",
+    "database_name": "license_service",
+    "database_id": "your-real-d1-database-id",
+    "migrations_dir": "./migrations"
+  }
+]
 ```
 
-Apply D1 migrations:
+Run the one-time setup (bootstrap + remote D1 seed + secret upload):
 
 ```sh
-pnpm db:migrate:remote
+pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key
 ```
 
-Bootstrap the first issuer, admin API key hash, and signing key pair. This writes
-`worker/bootstrap.local.json`, which is ignored by git because it contains secrets:
-
-```sh
-pnpm bootstrap -- --api-key=replace-with-a-long-random-admin-key
-```
-
-Apply the SQL from `worker/bootstrap.local.json` to the remote D1 database:
-
-```sh
-wrangler d1 execute license_service --remote --config worker/wrangler.toml --command "<paste printed INSERT SQL here>"
-```
-
-Set the Worker secrets from `worker/bootstrap.local.json`:
-
-```sh
-wrangler secret put SIGNING_KEY_ID --config worker/wrangler.toml
-wrangler secret put SIGNING_PRIVATE_JWK --config worker/wrangler.toml
-```
-
-Deploy:
+Deploy (`pnpm deploy` applies migrations then runs `wrangler deploy`):
 
 ```sh
 pnpm deploy
 ```
 
-### Set variables in Cloudflare dashboard
+### Verify configuration in Cloudflare dashboard
 
-After deployment, in the Cloudflare dashboard:
+After `pnpm setup:remote` and `pnpm deploy`, open your Workers project in the
+Cloudflare dashboard and confirm:
 
-1. Open your Workers project.
-2. Go to `Settings` > `Variables`.
-3. Confirm these environment variables:
+1. `Settings` > `Variables`:
    - `LICENSE_ISSUER`: public issuer name in signed licenses, default `licsign`.
    - `CORS_ORIGIN`: allowed browser origin, default `*`.
-4. Confirm these secrets exist:
+2. `Settings` > `Variables and Secrets`:
    - `SIGNING_KEY_ID`
    - `SIGNING_PRIVATE_JWK`
-5. Save and redeploy if the dashboard asks you to.
 
-Do not put the admin API key itself in variables. The raw key is only shown to the
-operator; D1 stores its SHA-256 hash from the bootstrap SQL.
+The admin API key is never stored as a variable. The raw key is only shown to the
+operator at setup time; D1 stores its SHA-256 hash.
 
 ### Example requests
 
@@ -133,7 +143,8 @@ curl "https://your-worker.your-subdomain.workers.dev/license/default/TV-XXXX-XXX
 ```
 
 The `default` path segment is the bootstrap `public_user_id`. If you pass
-`--public-user-id=<value>` to `pnpm bootstrap`, use that value instead.
+`--public-user-id=<value>` to `pnpm bootstrap` or `pnpm setup:remote`, use that
+value instead.
 
 ## Local Quick Start
 

@@ -23,7 +23,7 @@ function run(command, args) {
 }
 
 const bootstrapFile = resolve(getArg("bootstrap", "worker/bootstrap.local.json"));
-const wranglerConfig = getArg("config", "worker/wrangler.toml");
+const wranglerConfig = getArg("config", "worker/wrangler.jsonc");
 const databaseName = getArg("database", "license_service");
 const wranglerBin = process.platform === "win32" ? "node_modules/.bin/wrangler.cmd" : "node_modules/.bin/wrangler";
 

@@ -26,20 +26,20 @@ fnm use
 pnpm install
 pnpm test
 pnpm typecheck
-HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler deploy --dry-run --config worker/wrangler.toml
+HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler deploy --dry-run --config worker/wrangler.jsonc
 ```
 
 D1 local migration verification may require permissions to bind localhost:
 
 ```sh
-HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler d1 migrations apply license_service --local --config worker/wrangler.toml
+HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler d1 migrations apply license_service --local --config worker/wrangler.jsonc
 ```
 
 ## Deployment Setup
 
 Before production deployment:
 
-1. Replace `database_id` in `worker/wrangler.toml` with the real D1 database id.
+1. Replace `database_id` in `worker/wrangler.jsonc` with the real D1 database id.
 2. Run migrations against the remote D1 database.
 3. Run `pnpm bootstrap -- --api-key=<long-random-admin-key>`.
 4. Read `worker/bootstrap.local.json`, then apply its `sql` statements to D1.
@@ -129,7 +129,7 @@ When changing code, run:
 ```sh
 fnm exec --using=22.18.0 node_modules/.bin/vitest run
 fnm exec --using=22.18.0 node_modules/.bin/tsc -p tsconfig.json --noEmit
-HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler deploy --dry-run --config worker/wrangler.toml
+HOME=/tmp fnm exec --using=22.18.0 node_modules/.bin/wrangler deploy --dry-run --config worker/wrangler.jsonc
 ```
 
 Add focused tests for:
