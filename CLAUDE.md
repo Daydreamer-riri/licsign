@@ -149,3 +149,19 @@ Update docs whenever behavior changes:
 - `docs/android-tv-verification.md` for client verification implications.
 - `docs/key-rotation.md` for signing key changes.
 - `docs/future-*.md` for intentionally deferred work.
+
+## Agent skills
+
+### Issue tracker
+
+Issues live in GitHub Issues (Daydreamer-riri/licsign). See docs/agents/issue-tracker.md.
+
+### Triage labels
+
+Default five-role vocabulary (
+eeds-triage, 
+eeds-info, eady-for-agent, eady-for-human, wontfix). See docs/agents/triage-labels.md.
+
+### Domain docs
+
+Single-context — one CONTEXT.md + docs/adr/ at the repo root. See docs/agents/domain.md.
