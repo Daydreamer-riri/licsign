@@ -1,13 +1,9 @@
 import { trialRequestSchema } from "../../../shared/src/schemas";
-import type {
-  ClientActivationError,
-  OfflineLicensePayload,
-  SignedLicenseResponse
-} from "../../../shared/src/types";
+import type { ClientActivationError, SignedLicenseResponse } from "../../../shared/src/types";
 import type { ProductRow, TrialActivationRow } from "../db/models";
 import type { Env } from "../types";
 import { first, run } from "../db/d1";
-import { signOfflineLicense } from "../crypto/signing";
+import { issueSignedLicense } from "./issuance";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import { writeAuditLog } from "./audit";
@@ -101,26 +97,15 @@ export async function issueTrial(env: Env, body: unknown): Promise<SignedLicense
     }
   });
 
-  const payload: OfflineLicensePayload = {
-    version: 1,
+  return issueSignedLicense(env, {
     kind: "trial",
     license_id: null,
     product_code: product.code,
     machine_hash: input.machine_hash,
-    features: [],
-    issued_at: issuedAt,
     expires_at: tokenExpiresAt,
     max_devices: 1,
-    issuer: env.LICENSE_ISSUER,
-    key_id: env.SIGNING_KEY_ID
-  };
-
-  const signed = await signOfflineLicense(payload, env);
-  return {
-    license: payload,
-    signature: signed.signature,
-    token: signed.token
-  };
+    issued_at: issuedAt,
+  });
 }
 
 function ensureTrialIsActive(product: ProductRow): ActiveTrialConfig {

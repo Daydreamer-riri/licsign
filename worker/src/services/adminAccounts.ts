@@ -1,5 +1,6 @@
 import { createId } from "../utils/id";
-import { all, first, nowIso, run } from "../db/d1";
+import { all, first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import { hashPassword } from "./adminAuth";
 import { ApiError } from "../utils/http";
 

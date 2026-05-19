@@ -1,6 +1,7 @@
 import { licenseSearchSchema, revokeLicenseSchema } from "../../../shared/src/schemas";
 import type { ActivationRow, LicenseRow } from "../db/models";
-import { all, first, nowIso, run } from "../db/d1";
+import { all, first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import type { AdminActor } from "../types";
 import { auditActorFromAdminActor, writeAuditLog } from "./audit";

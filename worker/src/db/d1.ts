@@ -11,6 +11,3 @@ export async function run(statement: D1PreparedStatement): Promise<D1Result> {
   return statement.run();
 }
 
-export function nowIso(): string {
-  return new Date().toISOString();
-}

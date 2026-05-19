@@ -1,5 +1,6 @@
 import { createId } from "../utils/id";
-import { nowIso, run } from "../db/d1";
+import { run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import type { AdminActor } from "../types";
 
 export type AuditActorType = "admin" | "api_key" | "system" | "client";

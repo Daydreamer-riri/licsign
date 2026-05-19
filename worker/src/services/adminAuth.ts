@@ -1,6 +1,7 @@
 import { sha256Hex } from "../utils/hash";
 import { createId } from "../utils/id";
-import { first, nowIso, run } from "../db/d1";
+import { first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 
 const PBKDF2_ITERATIONS = 600_000;

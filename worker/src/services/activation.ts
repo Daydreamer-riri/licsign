@@ -1,9 +1,10 @@
 import { activateSchema, deactivateSchema } from "../../../shared/src/schemas";
-import type { ClientActivationError, OfflineLicensePayload, SignedLicenseResponse } from "../../../shared/src/types";
+import type { ClientActivationError, SignedLicenseResponse } from "../../../shared/src/types";
 import type { LicenseWithProductRow } from "../db/models";
 import type { Env } from "../types";
-import { first, nowIso, run } from "../db/d1";
-import { signOfflineLicense } from "../crypto/signing";
+import { first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
+import { issueSignedLicense } from "./issuance";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import { writeAuditLog } from "./audit";
@@ -34,7 +35,14 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
         )
         .bind(now, input.device_label ?? null, input.client_version ?? null, input.platform ?? null, existing.id)
     );
-    return issueSignedLicense(env, license, input.machine_hash, now);
+    return issueSignedLicense(env, {
+      license_id: license.id,
+      product_code: license.product_code,
+      machine_hash: input.machine_hash,
+      expires_at: license.expires_at,
+      max_devices: license.max_devices,
+      issued_at: now,
+    });
   }
 
   const activeCount = await first<{ count: number }>(
@@ -107,7 +115,14 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
     }
   });
 
-  return issueSignedLicense(env, license, input.machine_hash, now);
+  return issueSignedLicense(env, {
+      license_id: license.id,
+      product_code: license.product_code,
+      machine_hash: input.machine_hash,
+      expires_at: license.expires_at,
+      max_devices: license.max_devices,
+      issued_at: now,
+    });
 }
 
 export async function deactivate(env: Env, body: unknown) {
@@ -172,31 +187,5 @@ function ensureLicenseCanActivate(license: LicenseWithProductRow, productCode: s
   if (license.expires_at && new Date(license.expires_at).getTime() <= Date.now()) {
     throw new ApiError<ClientActivationError>(403, "LICENSE_EXPIRED", "License is expired");
   }
-}
-
-async function issueSignedLicense(
-  env: Env,
-  license: LicenseWithProductRow,
-  machineHash: string,
-  issuedAt: string
-): Promise<SignedLicenseResponse> {
-  const payload: OfflineLicensePayload = {
-    version: 1,
-    license_id: license.id,
-    product_code: license.product_code,
-    machine_hash: machineHash,
-    features: [],
-    issued_at: issuedAt,
-    expires_at: license.expires_at,
-    max_devices: license.max_devices,
-    issuer: env.LICENSE_ISSUER,
-    key_id: env.SIGNING_KEY_ID
-  };
-  const signed = await signOfflineLicense(payload, env);
-  return {
-    license: payload,
-    signature: signed.signature,
-    token: signed.token
-  };
 }
 

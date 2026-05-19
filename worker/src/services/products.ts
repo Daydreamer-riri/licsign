@@ -1,6 +1,7 @@
 import { createProductSchema, updateProductSchema } from "../../../shared/src/schemas";
 import type { ProductRow } from "../db/models";
-import { all, first, nowIso, run } from "../db/d1";
+import { all, first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import type { AdminActor } from "../types";

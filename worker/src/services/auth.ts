@@ -1,7 +1,8 @@
 import { getCookie } from "hono/cookie";
 import type { Context, Next } from "hono";
 import type { AdminContext, Env } from "../types";
-import { first, nowIso, run } from "../db/d1";
+import { first, run } from "../db/d1";
+import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import { sha256Hex } from "../utils/hash";
 import { validateSession } from "./adminAuth";
