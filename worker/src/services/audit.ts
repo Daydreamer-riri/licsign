@@ -1,11 +1,20 @@
 import { createId } from "../utils/id";
 import { nowIso, run } from "../db/d1";
+import type { AdminActor } from "../types";
+
+export type AuditActorType = "admin" | "api_key" | "system" | "client";
+
+export function auditActorFromAdminActor(actor: AdminActor): { actorType: AuditActorType; actorId: string } {
+  return actor.type === "api_key"
+    ? { actorType: "api_key", actorId: actor.apiKeyId }
+    : { actorType: "admin", actorId: actor.adminId };
+}
 
 export async function writeAuditLog(
   db: D1Database,
   input: {
     issuerId?: string | null;
-    actorType: "admin" | "system" | "client";
+    actorType: AuditActorType;
     actorId?: string | null;
     action: string;
     targetType: string;

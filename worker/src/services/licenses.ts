@@ -2,7 +2,8 @@ import { licenseSearchSchema, revokeLicenseSchema } from "../../../shared/src/sc
 import type { ActivationRow, LicenseRow } from "../db/models";
 import { all, first, nowIso, run } from "../db/d1";
 import { ApiError } from "../utils/http";
-import { writeAuditLog } from "./audit";
+import type { AdminActor } from "../types";
+import { auditActorFromAdminActor, writeAuditLog } from "./audit";
 
 export async function searchLicenses(db: D1Database, issuerId: string, query: Record<string, string>) {
   const input = licenseSearchSchema.parse(query);
@@ -75,7 +76,7 @@ export async function readLicense(db: D1Database, issuerId: string, licenseId: s
 export async function setLicenseDisabled(
   db: D1Database,
   issuerId: string,
-  actorId: string,
+  actor: AdminActor,
   licenseId: string,
   disabled: boolean
 ): Promise<LicenseRow> {
@@ -106,8 +107,7 @@ export async function setLicenseDisabled(
   );
   await writeAuditLog(db, {
     issuerId,
-    actorType: "admin",
-    actorId,
+    ...auditActorFromAdminActor(actor),
     action: disabled ? "license.disable" : "license.enable",
     targetType: "license",
     targetId: licenseId
@@ -120,7 +120,13 @@ export async function setLicenseDisabled(
   return updated;
 }
 
-export async function revokeLicense(db: D1Database, issuerId: string, actorId: string, licenseId: string, body: unknown) {
+export async function revokeLicense(
+  db: D1Database,
+  issuerId: string,
+  actor: AdminActor,
+  licenseId: string,
+  body: unknown
+) {
   const input = revokeLicenseSchema.parse(body ?? {});
   const license = await first<LicenseRow>(
     db.prepare("SELECT * FROM licenses WHERE id = ? AND issuer_id = ?").bind(licenseId, issuerId)
@@ -141,8 +147,7 @@ export async function revokeLicense(db: D1Database, issuerId: string, actorId: s
   );
   await writeAuditLog(db, {
     issuerId,
-    actorType: "admin",
-    actorId,
+    ...auditActorFromAdminActor(actor),
     action: "license.revoke",
     targetType: "license",
     targetId: licenseId,

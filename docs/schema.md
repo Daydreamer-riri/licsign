@@ -9,6 +9,7 @@ and index rationale.
 
 ```
 issuers ──1:N── api_keys
+         ──1:N── admins
          ──1:N── products
          ──1:N── license_batches
          ──1:N── licenses
@@ -24,6 +25,8 @@ license_batches ──1:N── licenses
 licenses ──1:N── activations
 
 api_keys ──1:N── license_batches (created_by)
+admins ──1:N── admin_sessions
+       ──1:N── license_batches (created_by)
 ```
 
 ## issuers
@@ -40,13 +43,51 @@ future multi-issuer support.
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
 | updated_at | TEXT | NOT NULL | ISO 8601 timestamp |
 
-Cascade: deleting an issuer removes all its api_keys, products, license_batches, and
-licenses. audit_logs and license_batches.created_by_api_key_id use SET NULL to preserve
-history.
+Cascade: deleting an issuer removes all its api_keys, admins, products,
+license_batches, and licenses. audit_logs and license_batches creator fields use
+SET NULL to preserve history.
+
+## admins
+
+People authorized to manage one issuer through the Admin UI.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TEXT | PRIMARY KEY | Internal identifier |
+| issuer_id | TEXT | NOT NULL, FK → issuers(id) ON DELETE CASCADE | Owning issuer |
+| email | TEXT | NOT NULL, UNIQUE | Login email |
+| password_hash | TEXT | NOT NULL | PBKDF2-SHA256 password hash |
+| password_salt | TEXT | NOT NULL | Salt used for PBKDF2 |
+| status | TEXT | NOT NULL, CHECK IN ('active', 'disabled') | Admin availability |
+| created_at | TEXT | NOT NULL | ISO 8601 timestamp |
+| updated_at | TEXT | NOT NULL | ISO 8601 timestamp |
+
+Indexes:
+
+- `idx_admins_issuer_id` — list admins by issuer
+- `idx_admins_email` — login lookup
+
+## admin_sessions
+
+Opaque browser sessions for Admin UI authentication.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TEXT | PRIMARY KEY | Internal identifier |
+| token_hash | TEXT | NOT NULL, UNIQUE | SHA-256 hex of the session token |
+| admin_id | TEXT | NOT NULL, FK → admins(id) ON DELETE CASCADE | Authenticated admin |
+| expires_at | TEXT | NOT NULL | Session expiry |
+| created_at | TEXT | NOT NULL | ISO 8601 timestamp |
+
+Indexes:
+
+- `idx_admin_sessions_admin_id` — delete/list sessions by admin
+- `idx_admin_sessions_token_hash` — session lookup
+- `idx_admin_sessions_expires_at` — cleanup expired sessions
 
 ## api_keys
 
-Admin authentication. Raw keys are never stored; only SHA-256 hex digests.
+Automation authentication. Raw keys are never stored; only SHA-256 hex digests.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -106,13 +147,15 @@ Groups of activation codes generated in bulk.
 | max_devices | INTEGER | NOT NULL | Device limit per license in this batch |
 | expires_at | TEXT | nullable | License expiration; null = no expiration |
 | notes | TEXT | nullable | Free-form notes |
-| created_by_api_key_id | TEXT | FK → api_keys(id) ON DELETE SET NULL | API key that created the batch; SET NULL preserves audit trail if key is deleted |
+| created_by_api_key_id | TEXT | FK → api_keys(id) ON DELETE SET NULL | API Key that created the batch; null when a browser Admin created it |
+| created_by_admin_id | TEXT | FK → admins(id) ON DELETE SET NULL | Admin that created the batch; null when an API Key created it |
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
 
 Indexes:
 
 - `idx_license_batches_issuer_id` — list batches by issuer
 - `idx_license_batches_product_id` — list batches by product
+- `idx_license_batches_created_by_admin_id` — list batches by creator admin
 
 ## licenses
 
@@ -210,8 +253,8 @@ Immutable record of significant operations.
 |--------|------|-------------|-------------|
 | id | TEXT | PRIMARY KEY | Internal identifier |
 | issuer_id | TEXT | FK → issuers(id) ON DELETE SET NULL | Issuer context; SET NULL if issuer is deleted |
-| actor_type | TEXT | NOT NULL, CHECK IN ('admin', 'system', 'client') | Who performed the action |
-| actor_id | TEXT | nullable | api_key id (admin) or machine_hash (client) |
+| actor_type | TEXT | NOT NULL, CHECK IN ('admin', 'api_key', 'system', 'client') | Kind of actor that performed the action |
+| actor_id | TEXT | nullable | Admin id, API Key id, machine_hash, or null for system |
 | action | TEXT | NOT NULL | Operation name (e.g. "activate", "revoke", "batch_create") |
 | target_type | TEXT | NOT NULL | Entity type (e.g. "license", "batch") |
 | target_id | TEXT | nullable | Entity id |
@@ -238,12 +281,3 @@ Indexes:
 | expires_at | licenses / license_batches | expires_at |
 | userId (LicenseGate) | issuers | public_user_id |
 | licenseKey (LicenseGate) | licenses | activation_code |
-
-## Planned Future Tables
-
-From `docs/future-admin-ui.md`:
-
-- `admins` — email/password accounts for admin UI login
-- `admin_sessions` — cookie-based session tokens for admin UI auth
-
-These will be added as new migration files when the admin UI is implemented.

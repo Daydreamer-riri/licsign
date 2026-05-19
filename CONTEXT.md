@@ -13,8 +13,12 @@ A person authorized to manage one Issuer through the Admin UI.
 _Avoid_: API key, operator
 
 **API Key**:
-A credential used by automation to access Admin API endpoints for one Issuer.
+A credential used by automation to access Admin API endpoints for one Issuer; it remains distinct from any Admin even when an Admin created or owns it.
 _Avoid_: Admin password, session token
+
+**Actor**:
+A person, automation credential, client, or system that performs an auditable action.
+_Avoid_: User, caller
 
 **Activation Code**:
 A user-facing code that can be exchanged online for a signed offline license.
@@ -30,6 +34,7 @@ _Avoid_: Activation code
 - An **Issuer** has zero or more **API Keys**.
 - An **Admin** belongs to exactly one **Issuer**.
 - An **API Key** belongs to exactly one **Issuer**.
+- An **API Key** may be created or owned by an **Admin**, but it is still a distinct **Actor**.
 - An **Activation Code** can produce an **Offline License** during client activation.
 
 ## Example dialogue
@@ -40,3 +45,4 @@ _Avoid_: Activation code
 ## Flagged ambiguities
 
 - "Admin authentication" can mean **Admin** email/password sessions or **API Key** automation credentials — resolved: these are distinct credentials for the same Admin API surface.
+- "API Key belongs to an Admin" can mean ownership metadata or actor identity — resolved: ownership metadata is optional; audit identity records the actual **Actor**.

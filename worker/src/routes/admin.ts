@@ -1,6 +1,6 @@
 import { Hono } from "hono";
 import { z } from "zod";
-import type { AdminActor, AdminContext, Env } from "../types";
+import type { AdminContext, Env } from "../types";
 import { adminMiddleware } from "../services/auth";
 import { createProduct, listProducts, updateProduct } from "../services/products";
 import { createBatch, listBatches, readBatch } from "../services/batches";
@@ -19,10 +19,6 @@ export const adminRoutes = new Hono<{ Bindings: Env; Variables: { admin: AdminCo
 
 adminRoutes.use("*", adminMiddleware);
 
-function actorId(actor: AdminActor): string {
-  return actor.type === "api_key" ? actor.apiKeyId : actor.adminId;
-}
-
 adminRoutes.get("/me", (c) => c.json({ admin: c.get("admin") }));
 
 adminRoutes.get("/products", async (c) => {
@@ -32,13 +28,13 @@ adminRoutes.get("/products", async (c) => {
 
 adminRoutes.post("/products", async (c) => {
   const admin = c.get("admin");
-  return c.json(await createProduct(c.env.DB, admin.issuerId, actorId(admin.actor), await c.req.json()));
+  return c.json(await createProduct(c.env.DB, admin.issuerId, admin.actor, await c.req.json()));
 });
 
 adminRoutes.patch("/products/:id", async (c) => {
   const admin = c.get("admin");
   return c.json(
-    await updateProduct(c.env.DB, admin.issuerId, actorId(admin.actor), c.req.param("id"), await c.req.json())
+    await updateProduct(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await c.req.json())
   );
 });
 
@@ -49,7 +45,7 @@ adminRoutes.get("/batches", async (c) => {
 
 adminRoutes.post("/batches", async (c) => {
   const admin = c.get("admin");
-  return c.json(await createBatch(c.env.DB, admin.issuerId, actorId(admin.actor), await c.req.json()));
+  return c.json(await createBatch(c.env.DB, admin.issuerId, admin.actor, await c.req.json()));
 });
 
 adminRoutes.get("/batches/:id", async (c) => {
@@ -80,17 +76,17 @@ adminRoutes.get("/licenses/:id", async (c) => {
 
 adminRoutes.post("/licenses/:id/disable", async (c) => {
   const admin = c.get("admin");
-  return c.json(await setLicenseDisabled(c.env.DB, admin.issuerId, actorId(admin.actor), c.req.param("id"), true));
+  return c.json(await setLicenseDisabled(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), true));
 });
 
 adminRoutes.post("/licenses/:id/enable", async (c) => {
   const admin = c.get("admin");
-  return c.json(await setLicenseDisabled(c.env.DB, admin.issuerId, actorId(admin.actor), c.req.param("id"), false));
+  return c.json(await setLicenseDisabled(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), false));
 });
 
 adminRoutes.post("/licenses/:id/revoke", async (c) => {
   const admin = c.get("admin");
-  return c.json(await revokeLicense(c.env.DB, admin.issuerId, actorId(admin.actor), c.req.param("id"), await c.req.json()));
+  return c.json(await revokeLicense(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await c.req.json()));
 });
 
 // --- Admin management ---

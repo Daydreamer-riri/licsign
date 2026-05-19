@@ -46,11 +46,13 @@ CREATE TABLE license_batches (
   expires_at TEXT,
   notes TEXT,
   created_by_api_key_id TEXT REFERENCES api_keys(id) ON DELETE SET NULL,
+  created_by_admin_id TEXT REFERENCES admins(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL
 );
 
 CREATE INDEX idx_license_batches_issuer_id ON license_batches(issuer_id);
 CREATE INDEX idx_license_batches_product_id ON license_batches(product_id);
+CREATE INDEX idx_license_batches_created_by_admin_id ON license_batches(created_by_admin_id);
 
 CREATE TABLE licenses (
   id TEXT PRIMARY KEY,
@@ -98,7 +100,7 @@ CREATE INDEX idx_activations_status ON activations(status);
 CREATE TABLE audit_logs (
   id TEXT PRIMARY KEY,
   issuer_id TEXT REFERENCES issuers(id) ON DELETE SET NULL,
-  actor_type TEXT NOT NULL CHECK (actor_type IN ('admin', 'system', 'client')),
+  actor_type TEXT NOT NULL CHECK (actor_type IN ('admin', 'api_key', 'system', 'client')),
   actor_id TEXT,
   action TEXT NOT NULL,
   target_type TEXT NOT NULL,

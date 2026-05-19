@@ -3,7 +3,8 @@ import type { ProductRow } from "../db/models";
 import { all, first, nowIso, run } from "../db/d1";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
-import { writeAuditLog } from "./audit";
+import type { AdminActor } from "../types";
+import { auditActorFromAdminActor, writeAuditLog } from "./audit";
 
 interface ResolvedTrial {
   enabled: boolean;
@@ -55,7 +56,12 @@ export async function listProducts(db: D1Database, issuerId: string): Promise<Pr
   );
 }
 
-export async function createProduct(db: D1Database, issuerId: string, actorId: string, body: unknown): Promise<ProductRow> {
+export async function createProduct(
+  db: D1Database,
+  issuerId: string,
+  actor: AdminActor,
+  body: unknown
+): Promise<ProductRow> {
   const input = createProductSchema.parse(body);
   const trial = resolveTrialFields(input);
   const now = nowIso();
@@ -95,8 +101,7 @@ export async function createProduct(db: D1Database, issuerId: string, actorId: s
 
   await writeAuditLog(db, {
     issuerId,
-    actorType: "admin",
-    actorId,
+    ...auditActorFromAdminActor(actor),
     action: "product.create",
     targetType: "product",
     targetId: id,
@@ -113,7 +118,7 @@ export async function createProduct(db: D1Database, issuerId: string, actorId: s
 export async function updateProduct(
   db: D1Database,
   issuerId: string,
-  actorId: string,
+  actor: AdminActor,
   productId: string,
   body: unknown
 ): Promise<ProductRow> {
@@ -169,8 +174,7 @@ export async function updateProduct(
 
   await writeAuditLog(db, {
     issuerId,
-    actorType: "admin",
-    actorId,
+    ...auditActorFromAdminActor(actor),
     action: "product.update",
     targetType: "product",
     targetId: productId,

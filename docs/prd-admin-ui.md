@@ -69,6 +69,7 @@ Add email/password Admin authentication with PBKDF2-SHA256 password hashes and D
   - Frontend route shell/pages: Login, Dashboard, Products, Batches, Batch detail, Licenses, License detail, Admins, and Audit log.
   - Deployment integration: frontend build before Worker deploy, Static Assets configuration, and SPA fallback routing for non-API paths.
 - Admin and API Key are distinct domain credentials. Admin is a person using the Admin UI; API Key is an automation credential.
+- Batch creator provenance uses separate nullable foreign keys: API Key-created batches set `created_by_api_key_id`, and Admin-created batches set `created_by_admin_id`.
 - Preserve existing API Key authentication behavior, including Bearer tokens, raw Authorization values, and query-string API keys where currently supported.
 - Use PBKDF2-SHA256 for Admin passwords because Workers provide Web Crypto PBKDF2 and the project avoids Node-only crypto libraries.
 - Use D1-backed Admin sessions instead of JWTs, matching the existing ADR for server-side invalidation and avoiding session use of License signing keys.
@@ -83,7 +84,7 @@ Add email/password Admin authentication with PBKDF2-SHA256 password hashes and D
 - Reuse the existing current-identity endpoint for both API Key and session-cookie auth.
 - Login/logout live under Admin auth routes.
 - Dashboard stats exclude trial activations from recent paid License activations.
-- Audit logs must distinguish Admin actor identity from API Key actor identity.
+- Audit logs must record the actual actor kind: Admin browser actions use `actor_type = "admin"` and API Key automation uses `actor_type = "api_key"`.
 - The UI must not imply that disabled or revoked Licenses instantly invalidate already-issued Offline Licenses.
 - Update architecture, API, schema, and Admin UI docs as behavior moves from deferred to implemented.
 - Keep response error codes stable for existing integrations.

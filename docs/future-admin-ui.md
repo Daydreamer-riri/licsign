@@ -43,8 +43,13 @@ first-login password changes are deferred.
 
 - `admins` table: id, issuer_id (FK), email (unique), password_hash,
   password_salt, status, created_at, updated_at
-- `admin_sessions` table: id (random token), admin_id (FK), expires_at,
+- `admin_sessions` table: id, token_hash (unique), admin_id (FK), expires_at,
   created_at
+- `license_batches.created_by_admin_id`: nullable FK to `admins(id)` for
+  batches created from browser Admin sessions. `created_by_api_key_id` remains
+  the FK for API Key-created batches.
+- `audit_logs.actor_type`: records the actual actor kind (`admin`, `api_key`,
+  `system`, or `client`).
 
 Each admin is bound to a single issuer via `admins.issuer_id`. V1 admins have
 the same permissions within that issuer; role-based access control is deferred.

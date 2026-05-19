@@ -17,8 +17,11 @@ Admin endpoints accept either:
 - `Authorization: Bearer <api-key>`
 - `Authorization: <api-key>`
 - `?api_key=<api-key>`
+- `admin_session` HttpOnly cookie from `POST /api/admin/auth/login`
 
-The raw API key is never stored. D1 stores its SHA-256 hex digest.
+The raw API key and raw browser session token are never stored. D1 stores their
+SHA-256 hex digests. Mutating requests authenticated by session cookie require a
+same-origin `Origin` header; API Key automation does not.
 
 ## Client API
 
@@ -116,6 +119,17 @@ purchased activation code.
 
 ## Admin API
 
+### Auth
+
+- `POST /api/admin/auth/login`
+- `POST /api/admin/auth/logout`
+- `GET /api/admin/me`
+
+### Admins
+
+- `GET /api/admin/admins`
+- `POST /api/admin/admins`
+
 ### Products
 
 - `GET /api/admin/products`
@@ -165,6 +179,8 @@ Create batch body:
 ```
 
 The response includes generated `activation_codes` and a raw `csv` string.
+API Key-created batches set `created_by_api_key_id`; browser Admin-created
+batches set `created_by_admin_id`.
 
 ### Licenses
 
@@ -183,6 +199,21 @@ Search query parameters:
 - `status`
 - `take`
 - `skip`
+
+### Dashboard
+
+- `GET /api/admin/dashboard/stats`
+
+Recent activations include paid license activations only; trial activations are
+not mixed into this feed.
+
+### Audit logs
+
+- `GET /api/admin/audit-logs`
+
+Audit entries record the actual actor kind. Browser Admin actions use
+`actor_type = "admin"` with an Admin id; API Key automation uses
+`actor_type = "api_key"` with an API Key id.
 
 ## LicenseGate Compatibility
 
