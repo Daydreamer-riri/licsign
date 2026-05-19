@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { activate, deactivate } from "../src/services/activation";
 import type { ActivationRow, LicenseRow, ProductRow } from "../src/db/models";
-import type { LicenseStatus, ProductStatus } from "../../../shared/src/types";
+import type { LicenseStatus, ProductStatus } from "../../shared/src/types";
 import type { Env } from "../src/types";
 
 interface AuditLogRow {
