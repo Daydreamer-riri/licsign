@@ -1,6 +1,7 @@
 import { licenseSearchSchema, revokeLicenseSchema } from "../../../shared/src/schemas";
-import type { ActivationRow, LicenseRow } from "../db/models";
-import { all, first, run } from "../db/d1";
+import type { LicenseRow } from "../db/models";
+import * as licenseQueries from "../db/queries/licenses";
+import * as activationQueries from "../db/queries/activations";
 import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import type { AdminActor } from "../types";
@@ -29,48 +30,18 @@ export async function searchLicenses(db: D1Database, issuerId: string, query: Re
   }
 
   const whereSql = where.join(" AND ");
-  const rows = await all(
-    db
-      .prepare(
-        `SELECT
-          licenses.*,
-          products.code AS product_code,
-          products.name AS product_name,
-          COUNT(activations.id) AS active_device_count
-         FROM licenses
-         JOIN products ON products.id = licenses.product_id
-         LEFT JOIN activations ON activations.license_id = licenses.id AND activations.status = 'active'
-         WHERE ${whereSql}
-         GROUP BY licenses.id
-         ORDER BY licenses.created_at DESC
-         LIMIT ? OFFSET ?`
-      )
-      .bind(...bindings, input.take, input.skip)
-  );
-  const count = await first<{ count: number }>(
-    db.prepare(`SELECT COUNT(*) AS count FROM licenses WHERE ${whereSql}`).bind(...bindings)
-  );
+  const rows = await licenseQueries.search(db, whereSql, bindings, input.take, input.skip);
+  const count = await licenseQueries.countForSearch(db, whereSql, bindings);
 
-  return { licenses: rows, count: count?.count ?? 0 };
+  return { licenses: rows, count };
 }
 
 export async function readLicense(db: D1Database, issuerId: string, licenseId: string) {
-  const license = await first(
-    db
-      .prepare(
-        `SELECT licenses.*, products.code AS product_code, products.name AS product_name
-         FROM licenses
-         JOIN products ON products.id = licenses.product_id
-         WHERE licenses.id = ? AND licenses.issuer_id = ?`
-      )
-      .bind(licenseId, issuerId)
-  );
+  const license = await licenseQueries.findById(db, licenseId, issuerId);
   if (!license) {
     throw new ApiError(404, "NOT_FOUND", "License not found");
   }
-  const activations = await all<ActivationRow>(
-    db.prepare("SELECT * FROM activations WHERE license_id = ? ORDER BY activated_at DESC").bind(licenseId)
-  );
+  const activations = await activationQueries.listByLicense(db, licenseId);
   return { license, activations };
 }
 
@@ -81,9 +52,7 @@ export async function setLicenseDisabled(
   licenseId: string,
   disabled: boolean
 ): Promise<LicenseRow> {
-  const license = await first<LicenseRow>(
-    db.prepare("SELECT * FROM licenses WHERE id = ? AND issuer_id = ?").bind(licenseId, issuerId)
-  );
+  const license = await licenseQueries.findByIdAndIssuer(db, licenseId, issuerId);
   if (!license) {
     throw new ApiError(404, "NOT_FOUND", "License not found");
   }
@@ -93,19 +62,11 @@ export async function setLicenseDisabled(
 
   let nextStatus: LicenseRow["status"] = "disabled";
   if (!disabled) {
-    const activeCount = await first<{ count: number }>(
-      db
-        .prepare("SELECT COUNT(*) AS count FROM activations WHERE license_id = ? AND status = 'active'")
-        .bind(licenseId)
-    );
-    nextStatus = (activeCount?.count ?? 0) > 0 ? "activated" : "available";
+    const count = await activationQueries.countActiveByLicense(db, licenseId);
+    nextStatus = count > 0 ? "activated" : "available";
   }
 
-  await run(
-    db
-      .prepare("UPDATE licenses SET status = ?, updated_at = ? WHERE id = ? AND issuer_id = ?")
-      .bind(nextStatus, nowIso(), licenseId, issuerId)
-  );
+  await licenseQueries.updateStatus(db, licenseId, issuerId, nextStatus, nowIso());
   await writeAuditLog(db, {
     issuerId,
     ...auditActorFromAdminActor(actor),
@@ -114,7 +75,7 @@ export async function setLicenseDisabled(
     targetId: licenseId
   });
 
-  const updated = await first<LicenseRow>(db.prepare("SELECT * FROM licenses WHERE id = ?").bind(licenseId));
+  const updated = await licenseQueries.findByIdSimple(db, licenseId);
   if (!updated) {
     throw new ApiError(500, "SERVER_ERROR", "License update failed");
   }
@@ -129,23 +90,13 @@ export async function revokeLicense(
   body: unknown
 ) {
   const input = revokeLicenseSchema.parse(body ?? {});
-  const license = await first<LicenseRow>(
-    db.prepare("SELECT * FROM licenses WHERE id = ? AND issuer_id = ?").bind(licenseId, issuerId)
-  );
+  const license = await licenseQueries.findByIdAndIssuer(db, licenseId, issuerId);
   if (!license) {
     throw new ApiError(404, "NOT_FOUND", "License not found");
   }
 
   const now = nowIso();
-  await run(
-    db
-      .prepare(
-        `UPDATE licenses
-         SET status = 'revoked', revoked_at = ?, revoked_reason = ?, updated_at = ?
-         WHERE id = ? AND issuer_id = ?`
-      )
-      .bind(now, input.reason ?? null, now, licenseId, issuerId)
-  );
+  await licenseQueries.updateRevoked(db, licenseId, issuerId, input.reason ?? null, now);
   await writeAuditLog(db, {
     issuerId,
     ...auditActorFromAdminActor(actor),
@@ -155,7 +106,7 @@ export async function revokeLicense(
     details: { reason: input.reason ?? null }
   });
 
-  const updated = await first<LicenseRow>(db.prepare("SELECT * FROM licenses WHERE id = ?").bind(licenseId));
+  const updated = await licenseQueries.findByIdSimple(db, licenseId);
   if (!updated) {
     throw new ApiError(500, "SERVER_ERROR", "License revoke failed");
   }
