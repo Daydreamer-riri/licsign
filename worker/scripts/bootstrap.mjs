@@ -44,8 +44,8 @@ const issuerName = getArg("issuer-name", "Default Issuer");
 const publicUserId = getArg("public-user-id", "default");
 const apiKey = getArg("api-key");
 const apiKeyName = getArg("api-key-name", "bootstrap-admin");
-const adminEmail = getArg("admin-email");
-const adminPassword = getArg("admin-password");
+const adminEmail = getArg("admin-email", "admin");
+const adminPassword = getArg("admin-password", "password");
 const outFile = getArg("out", "worker/bootstrap.local.json");
 const printSecrets = getArg("print-secrets", "false") === "true";
 const signingOnly = getArg("signing-only", "false") === "true";
@@ -53,7 +53,7 @@ const signingOnly = getArg("signing-only", "false") === "true";
 if (!signingOnly && !apiKey) {
   console.error(
     "Usage: pnpm bootstrap -- --api-key=<admin-api-key> [--admin-email=...] [--admin-password=...] [--issuer-name=...] [--public-user-id=...] [--out=worker/bootstrap.local.json]\n" +
-      "       (use --signing-only=true to generate only a fresh signing key pair without an issuer/api_key row)"
+    "       (use --signing-only=true to generate only a fresh signing key pair without an issuer/api_key row)"
   );
   process.exit(1);
 }
