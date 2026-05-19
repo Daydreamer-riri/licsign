@@ -3,6 +3,7 @@ import { cors } from "hono/cors";
 import type { Env } from "./types";
 import { clientRoutes } from "./routes/client";
 import { adminRoutes } from "./routes/admin";
+import { adminAuthRoutes } from "./routes/adminAuth";
 import { compatRoutes } from "./routes/compat";
 import { openApiDocument } from "./openapi";
 import { jsonError, toApiError } from "./utils/http";
@@ -19,21 +20,26 @@ app.use("*", async (c, next) => {
   return corsMiddleware(c, next);
 });
 
-app.get("/", (c) =>
-  c.json({
+app.get("/", (c) => {
+  if (c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
+  return c.json({
     name: "Cloudflare License Service",
     version: "0.1.0",
     endpoints: ["/openapi.json", "/api/client/activate", "/api/admin/products", "/license/:userId/:licenseKey/verify"]
-  })
-);
+  });
+});
 
 app.get("/openapi.json", (c) => c.json(openApiDocument));
 
 app.route("/api/client", clientRoutes);
+app.route("/api/admin/auth", adminAuthRoutes);
 app.route("/api/admin", adminRoutes);
 app.route("/license", compatRoutes);
 
-app.notFound((c) => jsonError(c, 404, "NOT_FOUND", "Route not found"));
+app.notFound((c) => {
+  if (c.env.ASSETS) return c.env.ASSETS.fetch(c.req.raw);
+  return jsonError(c, 404, "NOT_FOUND", "Route not found");
+});
 
 app.onError((error, c) => {
   const apiError = toApiError(error);
@@ -41,3 +47,4 @@ app.onError((error, c) => {
 });
 
 export default app;
+

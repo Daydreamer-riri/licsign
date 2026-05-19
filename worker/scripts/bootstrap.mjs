@@ -17,19 +17,49 @@ function sql(value) {
   return `'${String(value).replace(/'/g, "''")}'`;
 }
 
+async function pbkdf2Hash(password) {
+  const salt = webcrypto.getRandomValues(new Uint8Array(16));
+  const keyMaterial = await webcrypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(password),
+    "PBKDF2",
+    false,
+    ["deriveBits"]
+  );
+  const bits = await webcrypto.subtle.deriveBits(
+    { name: "PBKDF2", salt, iterations: 600_000, hash: "SHA-256" },
+    keyMaterial,
+    32 * 8
+  );
+  const hashHex = [...new Uint8Array(bits)]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  const saltHex = [...salt]
+    .map((b) => b.toString(16).padStart(2, "0"))
+    .join("");
+  return { hash: hashHex, salt: saltHex };
+}
+
 const issuerName = getArg("issuer-name", "Default Issuer");
 const publicUserId = getArg("public-user-id", "default");
 const apiKey = getArg("api-key");
 const apiKeyName = getArg("api-key-name", "bootstrap-admin");
+const adminEmail = getArg("admin-email");
+const adminPassword = getArg("admin-password");
 const outFile = getArg("out", "worker/bootstrap.local.json");
 const printSecrets = getArg("print-secrets", "false") === "true";
 const signingOnly = getArg("signing-only", "false") === "true";
 
 if (!signingOnly && !apiKey) {
   console.error(
-    "Usage: pnpm bootstrap -- --api-key=<admin-api-key> [--issuer-name=...] [--public-user-id=...] [--out=worker/bootstrap.local.json]\n" +
+    "Usage: pnpm bootstrap -- --api-key=<admin-api-key> [--admin-email=...] [--admin-password=...] [--issuer-name=...] [--public-user-id=...] [--out=worker/bootstrap.local.json]\n" +
       "       (use --signing-only=true to generate only a fresh signing key pair without an issuer/api_key row)"
   );
+  process.exit(1);
+}
+
+if (adminEmail && !adminPassword) {
+  console.error("--admin-password is required when --admin-email is provided");
   process.exit(1);
 }
 
@@ -45,6 +75,7 @@ const keyId = `kid_${webcrypto.randomUUID().replace(/-/g, "")}`;
 
 let issuerBlock = null;
 let apiKeyBlock = null;
+let adminBlock = null;
 let sqlStatements = [];
 let keyHash = null;
 
@@ -58,6 +89,15 @@ if (!signingOnly) {
   ];
   issuerBlock = { id: issuerId, name: issuerName, public_user_id: publicUserId };
   apiKeyBlock = { id: apiKeyId, name: apiKeyName, value: apiKey, sha256: keyHash };
+
+  if (adminEmail && adminPassword) {
+    const adminId = createId("adm");
+    const { hash, salt } = await pbkdf2Hash(adminPassword);
+    sqlStatements.push(
+      `INSERT OR IGNORE INTO admins (id, issuer_id, email, password_hash, password_salt, status, created_at, updated_at) VALUES (${sql(adminId)}, ${sql(issuerId)}, ${sql(adminEmail.toLowerCase())}, ${sql(hash)}, ${sql(salt)}, 'active', ${sql(now)}, ${sql(now)});`
+    );
+    adminBlock = { id: adminId, email: adminEmail.toLowerCase() };
+  }
 }
 
 const bootstrap = {
@@ -66,6 +106,7 @@ const bootstrap = {
   mode: signingOnly ? "signing-only" : "full",
   issuer: issuerBlock,
   api_key: apiKeyBlock,
+  admin: adminBlock,
   signing: {
     key_id: keyId,
     private_jwk: privateJwk,
@@ -87,6 +128,9 @@ if (signingOnly) {
   console.log(apiKey);
   console.log("");
   console.log(`Issuer public user id: ${publicUserId}`);
+  if (adminBlock) {
+    console.log(`Admin account: ${adminBlock.email}`);
+  }
 }
 console.log(`Signing key id: ${keyId}`);
 console.log("");

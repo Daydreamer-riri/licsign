@@ -86,3 +86,24 @@ export interface LicenseWithProductRow extends LicenseRow {
   product_status: ProductStatus;
   product_issuer_id: string;
 }
+
+
+export interface AdminRow {
+  id: string;
+  issuer_id: string;
+  email: string;
+  password_hash: string;
+  password_salt: string;
+  status: "active" | "disabled";
+  created_at: string;
+  updated_at: string;
+}
+
+export interface AdminSessionRow {
+  id: string;
+  token_hash: string;
+  admin_id: string;
+  expires_at: string;
+  created_at: string;
+}
+
