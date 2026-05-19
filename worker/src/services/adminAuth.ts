@@ -1,6 +1,7 @@
 import { sha256Hex } from "../utils/hash";
 import { createId } from "../utils/id";
-import { first, run } from "../db/d1";
+import * as adminQueries from "../db/queries/admins";
+import * as sessionQueries from "../db/queries/sessions";
 import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 
@@ -63,28 +64,15 @@ export async function createSession(db: D1Database, adminId: string): Promise<{ 
   const now = nowIso();
   const expiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
 
-  await run(
-    db.prepare(
-      "INSERT INTO admin_sessions (id, token_hash, admin_id, expires_at, created_at) VALUES (?, ?, ?, ?, ?)"
-    ).bind(sessionId, tokenHash, adminId, expiresAt, now)
-  );
+  await sessionQueries.insertSession(db, {
+    id: sessionId,
+    tokenHash,
+    adminId,
+    expiresAt,
+    now,
+  });
 
   return { token, expiresAt };
-}
-
-interface SessionRow {
-  id: string;
-  token_hash: string;
-  admin_id: string;
-  expires_at: string;
-  created_at: string;
-}
-
-interface AdminRow {
-  id: string;
-  issuer_id: string;
-  email: string;
-  status: string;
 }
 
 export interface SessionValidationResult {
@@ -96,20 +84,16 @@ export interface SessionValidationResult {
 
 export async function validateSession(db: D1Database, token: string): Promise<SessionValidationResult | null> {
   const tokenHash = await sha256Hex(token);
-  const session = await first<SessionRow>(
-    db.prepare("SELECT * FROM admin_sessions WHERE token_hash = ?").bind(tokenHash)
-  );
+  const session = await sessionQueries.findByTokenHash(db, tokenHash);
 
   if (!session) return null;
 
   if (new Date(session.expires_at).getTime() <= Date.now()) {
-    await run(db.prepare("DELETE FROM admin_sessions WHERE id = ?").bind(session.id));
+    await sessionQueries.deleteById(db, session.id);
     return null;
   }
 
-  const admin = await first<AdminRow>(
-    db.prepare("SELECT id, issuer_id, email, status FROM admins WHERE id = ? AND status = 'active'").bind(session.admin_id)
-  );
+  const admin = await adminQueries.findByIdActive(db, session.admin_id);
 
   if (!admin) return null;
 
@@ -117,9 +101,7 @@ export async function validateSession(db: D1Database, token: string): Promise<Se
   const remaining = new Date(session.expires_at).getTime() - Date.now();
   if (remaining < SESSION_SLIDE_THRESHOLD_MS) {
     const newExpiresAt = new Date(Date.now() + SESSION_TTL_MS).toISOString();
-    await run(
-      db.prepare("UPDATE admin_sessions SET expires_at = ? WHERE id = ?").bind(newExpiresAt, session.id)
-    );
+    await sessionQueries.updateExpiry(db, session.id, newExpiresAt);
   }
 
   return {
@@ -132,28 +114,17 @@ export async function validateSession(db: D1Database, token: string): Promise<Se
 
 export async function deleteSession(db: D1Database, token: string): Promise<void> {
   const tokenHash = await sha256Hex(token);
-  await run(db.prepare("DELETE FROM admin_sessions WHERE token_hash = ?").bind(tokenHash));
+  await sessionQueries.deleteByTokenHash(db, tokenHash);
 }
 
 export async function deleteAllSessionsForAdmin(db: D1Database, adminId: string): Promise<void> {
-  await run(db.prepare("DELETE FROM admin_sessions WHERE admin_id = ?").bind(adminId));
+  await sessionQueries.deleteByAdminId(db, adminId);
 }
 
 // --- Login ---
 
-interface LoginAdminRow {
-  id: string;
-  issuer_id: string;
-  email: string;
-  password_hash: string;
-  password_salt: string;
-  status: string;
-}
-
 export async function login(db: D1Database, email: string, password: string): Promise<{ adminId: string; issuerId: string; token: string; expiresAt: string }> {
-  const admin = await first<LoginAdminRow>(
-    db.prepare("SELECT id, issuer_id, email, password_hash, password_salt, status FROM admins WHERE email = ?").bind(email.toLowerCase())
-  );
+  const admin = await adminQueries.findByEmailFull(db, email.toLowerCase());
 
   if (!admin || admin.status !== "active") {
     throw new ApiError(401, "UNAUTHORIZED", "Invalid email or password");
@@ -181,7 +152,3 @@ function hexToBytes(hex: string): Uint8Array {
   }
   return bytes;
 }
-
-
-
-

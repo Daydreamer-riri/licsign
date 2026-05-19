@@ -1,7 +1,5 @@
-import { createId } from "../utils/id";
-import { run } from "../db/d1";
-import { nowIso } from "../utils/time";
 import type { AdminActor } from "../types";
+import * as auditQueries from "../db/queries/audit";
 
 export type AuditActorType = "admin" | "api_key" | "system" | "client";
 
@@ -23,23 +21,13 @@ export async function writeAuditLog(
     details?: unknown;
   }
 ): Promise<void> {
-  await run(
-    db
-      .prepare(
-        `INSERT INTO audit_logs
-          (id, issuer_id, actor_type, actor_id, action, target_type, target_id, details_json, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
-      )
-      .bind(
-        createId("aud"),
-        input.issuerId ?? null,
-        input.actorType,
-        input.actorId ?? null,
-        input.action,
-        input.targetType,
-        input.targetId ?? null,
-        input.details === undefined ? null : JSON.stringify(input.details),
-        nowIso()
-      )
-  );
+  await auditQueries.insertAuditLog(db, {
+    issuerId: input.issuerId ?? null,
+    actorType: input.actorType,
+    actorId: input.actorId ?? null,
+    action: input.action,
+    targetType: input.targetType,
+    targetId: input.targetId ?? null,
+    detailsJson: input.details === undefined ? null : JSON.stringify(input.details),
+  });
 }

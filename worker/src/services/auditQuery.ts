@@ -1,4 +1,4 @@
-import { all, first } from "../db/d1";
+import * as auditQueries from "../db/queries/audit";
 
 interface AuditLogEntry {
   id: string;
@@ -34,23 +34,13 @@ export async function queryAuditLogs(
 
   const whereClause = where.join(" AND ");
 
-  const [countRow, logs] = await Promise.all([
-    first<{ count: number }>(
-      db.prepare(`SELECT COUNT(*) AS count FROM audit_logs WHERE ${whereClause}`).bind(...bindings)
-    ),
-    all<AuditLogEntry>(
-      db.prepare(
-        `SELECT id, actor_type, actor_id, action, target_type, target_id, details_json, created_at
-         FROM audit_logs
-         WHERE ${whereClause}
-         ORDER BY created_at DESC
-         LIMIT ? OFFSET ?`
-      ).bind(...bindings, take, skip)
-    )
+  const [total, logs] = await Promise.all([
+    auditQueries.countAuditLogs(db, whereClause, bindings),
+    auditQueries.queryAuditLogs(db, whereClause, bindings, take, skip),
   ]);
 
   return {
     audit_logs: logs,
-    total: countRow?.count ?? 0
+    total,
   };
 }

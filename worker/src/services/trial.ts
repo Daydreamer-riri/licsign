@@ -2,7 +2,8 @@ import { trialRequestSchema } from "../../../shared/src/schemas";
 import type { ClientActivationError, SignedLicenseResponse } from "../../../shared/src/types";
 import type { ProductRow, TrialActivationRow } from "../db/models";
 import type { Env } from "../types";
-import { first, run } from "../db/d1";
+import * as productQueries from "../db/queries/products";
+import * as trialQueries from "../db/queries/trials";
 import { issueSignedLicense } from "./issuance";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
@@ -17,9 +18,7 @@ interface ActiveTrialConfig {
 export async function issueTrial(env: Env, body: unknown): Promise<SignedLicenseResponse> {
   const input = trialRequestSchema.parse(body);
 
-  const product = await first<ProductRow>(
-    env.DB.prepare("SELECT * FROM products WHERE code = ?").bind(input.product_code)
-  );
+  const product = await productQueries.findByCode(env.DB, input.product_code);
   if (!product || product.status !== "active") {
     throw new ApiError<ClientActivationError>(404, "PRODUCT_NOT_FOUND", "Product was not found");
   }
@@ -30,57 +29,29 @@ export async function issueTrial(env: Env, body: unknown): Promise<SignedLicense
   const issuedAt = new Date(issuedAtMs).toISOString();
   const tokenExpiresAt = new Date(issuedAtMs + trial.ttlSeconds * 1000).toISOString();
 
-  const existing = await first<TrialActivationRow>(
-    env.DB
-      .prepare("SELECT * FROM trial_activations WHERE product_id = ? AND machine_hash = ?")
-      .bind(product.id, input.machine_hash)
-  );
+  const existing = await trialQueries.findByProductAndMachine(env.DB, product.id, input.machine_hash);
 
   const firstSeen = !existing;
   if (existing) {
-    await run(
-      env.DB
-        .prepare(
-          `UPDATE trial_activations
-           SET last_seen_at = ?,
-               last_token_expires_at = ?,
-               token_count = token_count + 1,
-               device_label = COALESCE(?, device_label),
-               client_version = COALESCE(?, client_version),
-               platform = COALESCE(?, platform)
-           WHERE id = ?`
-        )
-        .bind(
-          issuedAt,
-          tokenExpiresAt,
-          input.device_label ?? null,
-          input.client_version ?? null,
-          input.platform ?? null,
-          existing.id
-        )
-    );
+    await trialQueries.update(env.DB, existing.id, {
+      issuedAt: issuedAt,
+      tokenExpiresAt,
+      deviceLabel: input.device_label ?? null,
+      clientVersion: input.client_version ?? null,
+      platform: input.platform ?? null,
+    });
   } else {
-    await run(
-      env.DB
-        .prepare(
-          `INSERT INTO trial_activations
-            (id, issuer_id, product_id, machine_hash, device_label, client_version, platform,
-             first_seen_at, last_seen_at, last_token_expires_at, token_count)
-           VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)`
-        )
-        .bind(
-          createId("trl"),
-          product.issuer_id,
-          product.id,
-          input.machine_hash,
-          input.device_label ?? null,
-          input.client_version ?? null,
-          input.platform ?? null,
-          issuedAt,
-          issuedAt,
-          tokenExpiresAt
-        )
-    );
+    await trialQueries.create(env.DB, {
+      id: createId("trl"),
+      issuerId: product.issuer_id,
+      productId: product.id,
+      machineHash: input.machine_hash,
+      deviceLabel: input.device_label ?? null,
+      clientVersion: input.client_version ?? null,
+      platform: input.platform ?? null,
+      issuedAt,
+      tokenExpiresAt,
+    });
   }
 
   await writeAuditLog(env.DB, {

@@ -1,6 +1,6 @@
 import { createProductSchema, updateProductSchema } from "../../../shared/src/schemas";
 import type { ProductRow } from "../db/models";
-import { all, first, run } from "../db/d1";
+import * as productQueries from "../db/queries/products";
 import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
@@ -50,11 +50,7 @@ function resolveTrialFields(
 }
 
 export async function listProducts(db: D1Database, issuerId: string): Promise<ProductRow[]> {
-  return all<ProductRow>(
-    db
-      .prepare("SELECT * FROM products WHERE issuer_id = ? ORDER BY created_at DESC")
-      .bind(issuerId)
-  );
+  return productQueries.list(db, issuerId);
 }
 
 export async function createProduct(
@@ -69,30 +65,19 @@ export async function createProduct(
   const id = createId("prd");
 
   try {
-    await run(
-      db
-        .prepare(
-          `INSERT INTO products
-            (id, issuer_id, code, name, description, status, default_max_devices,
-             trial_enabled, trial_start_at, trial_end_at, trial_token_ttl_seconds,
-             created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`
-        )
-        .bind(
-          id,
-          issuerId,
-          input.code,
-          input.name,
-          input.description,
-          input.default_max_devices,
-          trial.enabled ? 1 : 0,
-          trial.start_at,
-          trial.end_at,
-          trial.ttl_seconds,
-          now,
-          now
-        )
-    );
+    await productQueries.insert(db, {
+      id,
+      issuerId,
+      code: input.code,
+      name: input.name,
+      description: input.description,
+      defaultMaxDevices: input.default_max_devices,
+      trialEnabled: trial.enabled,
+      trialStartAt: trial.start_at,
+      trialEndAt: trial.end_at,
+      trialTtlSeconds: trial.ttl_seconds,
+      now,
+    });
   } catch (error) {
     if (String(error).includes("UNIQUE")) {
       throw new ApiError(409, "PRODUCT_EXISTS", "Product code already exists");
@@ -109,7 +94,7 @@ export async function createProduct(
     details: { code: input.code, trial_enabled: trial.enabled }
   });
 
-  const product = await first<ProductRow>(db.prepare("SELECT * FROM products WHERE id = ?").bind(id));
+  const product = await productQueries.findByIdSimple(db, id);
   if (!product) {
     throw new ApiError(500, "SERVER_ERROR", "Product creation failed");
   }
@@ -124,9 +109,7 @@ export async function updateProduct(
   body: unknown
 ): Promise<ProductRow> {
   const input = updateProductSchema.parse(body);
-  const existing = await first<ProductRow>(
-    db.prepare("SELECT * FROM products WHERE id = ? AND issuer_id = ?").bind(productId, issuerId)
-  );
+  const existing = await productQueries.findById(db, productId, issuerId);
   if (!existing) {
     throw new ApiError(404, "NOT_FOUND", "Product not found");
   }
@@ -142,30 +125,18 @@ export async function updateProduct(
   };
 
   try {
-    await run(
-      db
-        .prepare(
-          `UPDATE products
-           SET code = ?, name = ?, description = ?, status = ?, default_max_devices = ?,
-               trial_enabled = ?, trial_start_at = ?, trial_end_at = ?, trial_token_ttl_seconds = ?,
-               updated_at = ?
-           WHERE id = ? AND issuer_id = ?`
-        )
-        .bind(
-          next.code,
-          next.name,
-          next.description,
-          next.status,
-          next.default_max_devices,
-          trial.enabled ? 1 : 0,
-          trial.start_at,
-          trial.end_at,
-          trial.ttl_seconds,
-          nowIso(),
-          productId,
-          issuerId
-        )
-    );
+    await productQueries.update(db, productId, issuerId, {
+      code: next.code,
+      name: next.name,
+      description: next.description,
+      status: next.status,
+      defaultMaxDevices: next.default_max_devices,
+      trialEnabled: trial.enabled,
+      trialStartAt: trial.start_at,
+      trialEndAt: trial.end_at,
+      trialTtlSeconds: trial.ttl_seconds,
+      now: nowIso(),
+    });
   } catch (error) {
     if (String(error).includes("UNIQUE")) {
       throw new ApiError(409, "PRODUCT_EXISTS", "Product code already exists");
@@ -182,7 +153,7 @@ export async function updateProduct(
     details: input
   });
 
-  const product = await first<ProductRow>(db.prepare("SELECT * FROM products WHERE id = ?").bind(productId));
+  const product = await productQueries.findByIdSimple(db, productId);
   if (!product) {
     throw new ApiError(500, "SERVER_ERROR", "Product update failed");
   }

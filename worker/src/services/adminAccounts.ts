@@ -1,17 +1,8 @@
 import { createId } from "../utils/id";
-import { all, first, run } from "../db/d1";
 import { nowIso } from "../utils/time";
+import * as adminQueries from "../db/queries/admins";
 import { hashPassword } from "./adminAuth";
 import { ApiError } from "../utils/http";
-
-interface AdminRow {
-  id: string;
-  issuer_id: string;
-  email: string;
-  status: string;
-  created_at: string;
-  updated_at: string;
-}
 
 export async function createAdmin(
   db: D1Database,
@@ -20,9 +11,7 @@ export async function createAdmin(
   password: string
 ): Promise<{ id: string; email: string }> {
   const normalizedEmail = email.toLowerCase();
-  const existing = await first<{ id: string }>(
-    db.prepare("SELECT id FROM admins WHERE email = ?").bind(normalizedEmail)
-  );
+  const existing = await adminQueries.findByEmail(db, normalizedEmail);
   if (existing) {
     throw new ApiError(409, "EMAIL_EXISTS", "An admin with this email already exists");
   }
@@ -31,11 +20,14 @@ export async function createAdmin(
   const id = createId("adm");
   const now = nowIso();
 
-  await run(
-    db.prepare(
-      "INSERT INTO admins (id, issuer_id, email, password_hash, password_salt, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'active', ?, ?)"
-    ).bind(id, issuerId, normalizedEmail, hash, salt, now, now)
-  );
+  await adminQueries.insert(db, {
+    id,
+    issuerId,
+    email: normalizedEmail,
+    passwordHash: hash,
+    passwordSalt: salt,
+    now,
+  });
 
   return { id, email: normalizedEmail };
 }
@@ -44,7 +36,5 @@ export async function listAdmins(
   db: D1Database,
   issuerId: string
 ): Promise<Array<{ id: string; email: string; status: string; created_at: string }>> {
-  return all<{ id: string; email: string; status: string; created_at: string }>(
-    db.prepare("SELECT id, email, status, created_at FROM admins WHERE issuer_id = ? ORDER BY created_at ASC").bind(issuerId)
-  );
+  return adminQueries.list(db, issuerId);
 }

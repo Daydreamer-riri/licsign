@@ -1,17 +1,8 @@
 import type { LicenseGateValidationResult } from "../../../shared/src/types";
 import { licenseGatePostVerifySchema } from "../../../shared/src/schemas";
 import type { Env } from "../types";
-import { first } from "../db/d1";
+import * as licenseQueries from "../db/queries/licenses";
 import { signJws } from "../crypto/signing";
-
-interface CompatLicenseRow {
-  id: string;
-  issuer_id: string;
-  activation_code: string;
-  status: "available" | "activated" | "disabled" | "revoked";
-  expires_at: string | null;
-  product_status: "active" | "archived";
-}
 
 export async function verifyLicenseGateCompat(
   env: Env,
@@ -22,18 +13,8 @@ export async function verifyLicenseGateCompat(
   }
 ): Promise<{ valid: boolean; result: LicenseGateValidationResult; signedChallenge?: string }> {
   const options = licenseGatePostVerifySchema.parse(input.options ?? {});
-  const license = await first<CompatLicenseRow>(
-    env.DB
-      .prepare(
-        `SELECT licenses.*, products.status AS product_status
-         FROM licenses
-         JOIN products ON products.id = licenses.product_id
-         JOIN issuers ON issuers.id = licenses.issuer_id
-         WHERE licenses.activation_code = ?
-           AND issuers.public_user_id = ?`
-      )
-      .bind(input.licenseKey, input.userId)
-  );
+
+  const license = await licenseQueries.findForCompat(env.DB, input.licenseKey, input.userId);
 
   const result = mapCompatResult(license);
   if (result !== "VALID") {
@@ -57,7 +38,9 @@ export async function verifyLicenseGateCompat(
   return { valid: true, result: "VALID", signedChallenge };
 }
 
-function mapCompatResult(license: CompatLicenseRow | null): LicenseGateValidationResult {
+function mapCompatResult(
+  license: { product_status: string; status: string; expires_at: string | null } | null
+): LicenseGateValidationResult {
   if (!license) {
     return "NOT_FOUND";
   }

@@ -1,20 +1,13 @@
 import { getCookie } from "hono/cookie";
 import type { Context, Next } from "hono";
 import type { AdminContext, Env } from "../types";
-import { first, run } from "../db/d1";
+import * as authQueries from "../db/queries/auth";
 import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 import { sha256Hex } from "../utils/hash";
 import { validateSession } from "./adminAuth";
 
 const SESSION_COOKIE_NAME = "admin_session";
-
-interface AuthRow {
-  api_key_id: string;
-  issuer_id: string;
-  issuer_name: string;
-  public_user_id: string;
-}
 
 function getApiKeyFromRequest(c: Context): string | null {
   const authorization = c.req.header("authorization");
@@ -38,11 +31,7 @@ export async function authenticateAdmin(env: Env, c: Context): Promise<AdminCont
   if (sessionToken) {
     const session = await validateSession(env.DB, sessionToken);
     if (session) {
-      const issuer = await first<{ id: string; name: string; public_user_id: string }>(
-        env.DB.prepare(
-          "SELECT id, name, public_user_id FROM issuers WHERE id = ? AND status = 'active'"
-        ).bind(session.issuerId)
-      );
+      const issuer = await authQueries.findIssuerById(env.DB, session.issuerId);
       if (!issuer) {
         throw new ApiError(401, "UNAUTHORIZED", "Issuer not found or disabled");
       }
@@ -63,26 +52,13 @@ export async function authenticateAdmin(env: Env, c: Context): Promise<AdminCont
   }
 
   const keyHash = await sha256Hex(apiKey);
-  const row = await first<AuthRow>(
-    env.DB.prepare(
-      `SELECT
-        api_keys.id AS api_key_id,
-        issuers.id AS issuer_id,
-        issuers.name AS issuer_name,
-        issuers.public_user_id AS public_user_id
-       FROM api_keys
-       JOIN issuers ON issuers.id = api_keys.issuer_id
-       WHERE api_keys.key_hash = ?
-         AND api_keys.status = 'active'
-         AND issuers.status = 'active'`
-    ).bind(keyHash)
-  );
+  const row = await authQueries.findApiKeyByHash(env.DB, keyHash);
 
   if (!row) {
     throw new ApiError(401, "UNAUTHORIZED", "Invalid API key");
   }
 
-  await run(env.DB.prepare("UPDATE api_keys SET last_used_at = ? WHERE id = ?").bind(nowIso(), row.api_key_id));
+  await authQueries.updateApiKeyLastUsed(env.DB, row.api_key_id, nowIso());
 
   return {
     issuerId: row.issuer_id,
