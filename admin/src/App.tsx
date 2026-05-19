@@ -2,6 +2,13 @@ import { Routes, Route, Navigate } from "react-router";
 import { AuthProvider, useAuth } from "./auth";
 import { LoginPage } from "./pages/Login";
 import { DashboardPage } from "./pages/Dashboard";
+import { ProductsPage } from "./pages/Products";
+import { BatchesPage } from "./pages/Batches";
+import { BatchDetailPage } from "./pages/BatchDetail";
+import { LicensesPage } from "./pages/Licenses";
+import { LicenseDetailPage } from "./pages/LicenseDetail";
+import { AdminsPage } from "./pages/Admins";
+import { AuditLogsPage } from "./pages/AuditLogs";
 import { Layout } from "./components/Layout";
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -23,6 +30,13 @@ export function App() {
               <Layout>
                 <Routes>
                   <Route index element={<DashboardPage />} />
+                  <Route path="products" element={<ProductsPage />} />
+                  <Route path="batches" element={<BatchesPage />} />
+                  <Route path="batches/:id" element={<BatchDetailPage />} />
+                  <Route path="licenses" element={<LicensesPage />} />
+                  <Route path="licenses/:id" element={<LicenseDetailPage />} />
+                  <Route path="admins" element={<AdminsPage />} />
+                  <Route path="audit-logs" element={<AuditLogsPage />} />
                   <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
               </Layout>
