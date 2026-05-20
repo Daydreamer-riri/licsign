@@ -97,7 +97,9 @@ function issuerExists(databaseName, wranglerConfig, publicUserId) {
 const apiKey = getArg("api-key");
 const issuerName = getArg("issuer-name");
 const publicUserId = getArg("public-user-id", "default");
-const bootstrapFile = resolve(getArg("bootstrap", "worker/bootstrap.local.json"));
+const adminEmail = getArg("admin-email");
+const adminPassword = getArg("admin-password");
+const bootstrapFile = resolve(getArg("bootstrap", "worker/bootstrap.remote.json"));
 const wranglerConfig = "worker/wrangler.jsonc";
 const databaseName = "license_service";
 
@@ -109,12 +111,20 @@ const alreadySeeded = issuerExists(databaseName, wranglerConfig, publicUserId);
 
 if (alreadySeeded) {
   console.log(`Issuer '${publicUserId}' already exists. Switching to signing-only mode (rotate signing keys, keep existing issuer + api_key).`);
-} else if (!apiKey) {
-  console.error(
-    "First-time setup requires --api-key.\n" +
-      "Usage: pnpm setup:remote -- --api-key=<admin-api-key> [--issuer-name=...] [--public-user-id=...] [--bootstrap=worker/bootstrap.local.json]"
-  );
-  process.exit(1);
+} else {
+  // First-time setup must provision the admin login too, otherwise bootstrap.mjs would
+  // silently fall back to its 'admin'/'password' defaults and ship a weak account to prod.
+  const missing = [];
+  if (!apiKey) missing.push("--api-key=<admin-api-key>");
+  if (!adminEmail) missing.push("--admin-email=<admin-login-email>");
+  if (!adminPassword) missing.push("--admin-password=<admin-login-password>");
+  if (missing.length) {
+    console.error(
+      `First-time setup requires ${missing.join(", ")}.\n` +
+      "Usage: pnpm setup:remote -- --api-key=<admin-api-key> --admin-email=<email> --admin-password=<password> [--issuer-name=...] [--public-user-id=...] [--bootstrap=worker/bootstrap.remote.json]"
+    );
+    process.exit(1);
+  }
 }
 
 const bootstrapArgs = ["worker/scripts/bootstrap.mjs", `--out=${bootstrapFile}`, `--public-user-id=${publicUserId}`];
@@ -123,6 +133,8 @@ if (alreadySeeded) {
 } else {
   bootstrapArgs.push(`--api-key=${apiKey}`);
   if (issuerName) bootstrapArgs.push(`--issuer-name=${issuerName}`);
+  bootstrapArgs.push(`--admin-email=${adminEmail}`);
+  bootstrapArgs.push(`--admin-password=${adminPassword}`);
 }
 
 console.log("\n> Generating bootstrap material");
@@ -185,6 +197,9 @@ if (alreadySeeded) {
 } else {
   console.log(`Admin API key:    ${bootstrap.api_key.value}`);
   console.log(`Public user id:   ${bootstrap.issuer.public_user_id}`);
+  if (bootstrap.admin) {
+    console.log(`Admin login:      ${bootstrap.admin.email}`);
+  }
 }
 console.log(`Signing key id:   ${bootstrap.signing.key_id}`);
 console.log("");

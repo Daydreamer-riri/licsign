@@ -35,18 +35,21 @@ After the button finishes, clone the fork (so you pick up the rewritten
 git clone https://github.com/<your-user>/licsign.git
 cd licsign
 pnpm install
-pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key
+pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key \
+  --admin-email=you@example.com --admin-password=replace-with-a-strong-password
 ```
 
 If you already cloned the fork before clicking the button, run `git pull` first
 so the new `database_id` is in your working tree before `pnpm setup:remote`.
 
 `setup:remote` applies D1 migrations, then checks whether the issuer already
-exists on the remote database. On first run it inserts the initial `issuers` and
-`api_keys` rows; on every run it generates a fresh signing key pair and uploads
+exists on the remote database. On first run it inserts the initial `issuers`,
+`api_keys`, and `admins` rows — so `--admin-email` and `--admin-password` are
+required the first time, to avoid shipping the bootstrap default `admin`/`password`
+login. On every run it generates a fresh signing key pair and uploads
 `SIGNING_KEY_ID` and `SIGNING_PRIVATE_JWK` as Worker secrets. It prints the
-admin API key (first run only), the public user id, and the public JWK to embed
-in the Android TV verifier.
+admin API key and admin login (first run only), the public user id, and the
+public JWK to embed in the Android TV verifier.
 
 Re-running `pnpm setup:remote` rotates the signing keys without touching the
 existing issuer or admin API key. After a rotation, redistribute the new public
@@ -84,7 +87,8 @@ wrangler d1 create license_service
 Run the one-time setup (bootstrap + remote D1 seed + secret upload):
 
 ```sh
-pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key
+pnpm setup:remote -- --api-key=replace-with-a-long-random-admin-key \
+  --admin-email=you@example.com --admin-password=replace-with-a-strong-password
 ```
 
 Deploy (`pnpm deploy` applies migrations then runs `wrangler deploy`):
