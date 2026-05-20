@@ -1,9 +1,9 @@
 import { activateSchema, deactivateSchema } from "../../../shared/src/schemas";
 import type { ClientActivationError, SignedLicenseResponse } from "../../../shared/src/types";
-import type { LicenseWithProductRow } from "../db/models";
 import type { Env } from "../types";
 import { nowIso } from "../utils/time";
 import { issueSignedLicense } from "./issuance";
+import { ensureLicenseServiceable } from "./license-state";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import { writeAuditLog } from "./audit";
@@ -17,7 +17,7 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
     throw new ApiError<ClientActivationError>(404, "INVALID_CODE", "Activation code was not found");
   }
 
-  ensureLicenseCanActivate(license, input.product_code);
+  ensureLicenseServiceable(license, input.product_code);
 
   const now = nowIso();
   const existing = await activationQueries.findByLicenseAndMachine(env.DB, license.id, input.machine_hash);
@@ -113,19 +113,4 @@ export async function deactivate(env: Env, body: unknown) {
   });
 
   return { ok: true };
-}
-
-function ensureLicenseCanActivate(license: LicenseWithProductRow, productCode: string): void {
-  if (license.product_code !== productCode || license.product_status !== "active") {
-    throw new ApiError<ClientActivationError>(409, "PRODUCT_MISMATCH", "Activation code does not belong to this active product");
-  }
-  if (license.status === "disabled") {
-    throw new ApiError<ClientActivationError>(403, "LICENSE_DISABLED", "License is disabled");
-  }
-  if (license.status === "revoked") {
-    throw new ApiError<ClientActivationError>(403, "LICENSE_REVOKED", "License is revoked");
-  }
-  if (license.expires_at && new Date(license.expires_at).getTime() <= Date.now()) {
-    throw new ApiError<ClientActivationError>(403, "LICENSE_EXPIRED", "License is expired");
-  }
 }

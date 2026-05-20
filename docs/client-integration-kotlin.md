@@ -37,9 +37,13 @@ object MachineHash {
     /**
      * Derives a stable machine_hash for this device + app + product.
      *
-     * ANDROID_ID is, since Android 8, scoped per (app signing key, user, device)
-     * and survives app updates and restarts — it only resets on factory reset or
-     * app uninstall+reinstall. That is an acceptable V1 device identity.
+     * ANDROID_ID is, since Android 8, scoped per (app signing key, user, device).
+     * It survives app updates, restarts, and a plain uninstall+reinstall as long
+     * as the app signing key is unchanged — it resets only on factory reset or a
+     * signing-key change. Because it is reinstall-stable, the same machine_hash
+     * can be recomputed after a reinstall, which is what `POST /api/client/restore`
+     * relies on. Verify this on your target Android TV fleet before depending on
+     * restore.
      *
      * Namespacing with package + productCode means the same device produces a
      * different hash per product, and raw ANDROID_ID never leaves the device.
@@ -317,7 +321,7 @@ private fun derLength(length: Int): ByteArray =
 
 ## 5. The API client
 
-A minimal `HttpURLConnection` client for the three client endpoints. The result
+A minimal `HttpURLConnection` client for the client endpoints. The result
 type separates a **definitive server rejection** (a stable `error` code) from an
 **inconclusive network/5xx failure** — the state machine treats them very
 differently (agnostic guide §8).
@@ -359,6 +363,17 @@ class LicenseApi(
             put("device_label", deviceLabel)
             put("client_version", clientVersion)
             put("platform", platform)
+        })
+
+    /**
+     * Recovers the Offline License for a device that already activated, using
+     * only machine_hash — no activation code. Returns Rejected(NO_ACTIVATION)
+     * when this device has no active activation; fall back to activate() then.
+     */
+    fun restore(machineHash: String): ApiResult =
+        post("/api/client/restore", JSONObject().apply {
+            put("product_code", productCode)
+            put("machine_hash", machineHash)
         })
 
     /** Deactivate returns {"ok":true}; callers usually only care that it didn't reject. */
@@ -475,7 +490,9 @@ class LicenseManager(
 
     /** Call on every launch. */
     fun onLaunch(): LicenseState {
-        val token = store.token ?: return LicenseState.NeedsActivation
+        // No stored token — but this physical device may already be activated
+        // (e.g. the app was reinstalled). Try a no-code restore first.
+        val token = store.token ?: return tryRestore()
 
         return when (val result = verifier.verify(token)) {
             is VerifyResult.Valid -> {
@@ -525,6 +542,24 @@ class LicenseManager(
     }
 
     // --- internals -----------------------------------------------------------
+
+    /**
+     * Recovers a License for a device with no stored token but an existing
+     * active activation — the reinstall path. On NO_ACTIVATION (or any other
+     * rejection) the device has never activated here: send it to the activation
+     * screen, which can also offer a trial.
+     */
+    private fun tryRestore(): LicenseState {
+        return when (val result = api.restore(machineHash)) {
+            is ApiResult.Token ->
+                if (acceptToken(result.token)) {
+                    store.lastRevalidatedAt = System.currentTimeMillis()
+                    LicenseState.Licensed(verifier.verify(result.token).payloadOrThrow())
+                } else LicenseState.NeedsActivation
+            is ApiResult.Rejected -> LicenseState.NeedsActivation
+            is ApiResult.Unavailable -> LicenseState.NeedsActivation
+        }
+    }
 
     private fun renewTrial(): LicenseState {
         val result = api.trial(machineHash, deviceLabel)
@@ -660,7 +695,9 @@ a paid Activation Code (agnostic guide §9).
 ## 9. Checklist (Android specifics)
 
 - [ ] `INTERNET` permission is declared in the manifest.
-- [ ] `machine_hash` is derived once and cached for the process.
+- [ ] `machine_hash` is derived once and cached for the process, and is
+      **reinstall-stable** on the target devices (verified, not assumed) so that
+      `restore()` can recover a License after an uninstall+reinstall.
 - [ ] `TrustedKeys.jwks` contains every currently-valid `kid` from the operator.
 - [ ] All `LicenseApi` / `LicenseManager` calls run off the main thread.
 - [ ] Freshly issued tokens are verified (`acceptToken`) before being stored.

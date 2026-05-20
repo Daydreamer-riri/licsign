@@ -82,6 +82,34 @@ V1 does not throttle the trial endpoint. If trial-token harvesting becomes a rea
 problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
 `products.trial_recovery_enabled` flag without breaking the existing API.
 
+## Restore by machine_hash
+
+A paid Offline License lives only in the client's app-private storage, which an
+uninstall+reinstall wipes. `POST /api/client/restore` lets a device that already
+holds an **active** activation re-obtain its signed License using only
+`product_code + machine_hash` — no activation code. It is a lookup-and-reissue:
+the activation lookup joins `activations → licenses → products`, the matched
+License goes through the **same** online state validation as `activate` (a shared
+`ensureLicenseServiceable` helper), and the existing issuance path signs a fresh
+token. Restore never creates an `activations` row, never counts seats, and never
+reactivates a `deactivated` activation — it can only recover access a device
+already had, never establish it. It is idempotent and only refreshes
+`last_seen_at`.
+
+Security-wise restore adds no material attack surface: the token it returns is
+bound to the requesting `machine_hash`, exactly as an `activate` token is, and is
+useless on any device that cannot reproduce that hash. Its real guard is
+`machine_hash` entropy, and it re-checks License state online so a
+disabled/revoked/expired License — or an archived Product — cannot be restored.
+Restore is feasible **only** if `machine_hash` is stable across an
+uninstall+reinstall (Android `ANDROID_ID` is, for an unchanged signing key).
+
+Like the trial endpoint, V1 does not throttle restore; per-`machine_hash` rate
+limiting (a Cloudflare WAF rule, or KV counters) is the recommended follow-up if
+bulk probing with leaked `machine_hash` values becomes a problem. Successful
+restores write a `client.restore` audit log; `NO_ACTIVATION` failures write a
+`client.restore_failed` entry so harvesting probes are visible in audit history.
+
 ## Admin UI
 
 The Admin UI is a same-origin React SPA (shadcn/ui + Tailwind) served from the

@@ -70,6 +70,8 @@ Primary client API:
 
 - `POST /api/client/activate`
 - `POST /api/client/deactivate`
+- `POST /api/client/restore`
+- `POST /api/client/trial`
 
 Admin API, protected by D1-backed API keys:
 

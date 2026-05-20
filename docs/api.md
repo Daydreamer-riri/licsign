@@ -115,6 +115,48 @@ their TTL expires, but the endpoint stops issuing new ones. Clients that want to
 continue beyond the window must fall back to `POST /api/client/activate` with a
 purchased activation code.
 
+### `POST /api/client/restore`
+
+Re-issues a signed Offline License to a device that **already has an active
+activation**, identified by `machine_hash` + `product_code` alone. **No activation
+code required.** Use this on first launch after an uninstall+reinstall, when the
+locally stored token is gone but the device itself is unchanged.
+
+Request:
+
+```json
+{
+  "product_code": "my_product",
+  "machine_hash": "64-character-sha256-hex"
+}
+```
+
+Response shape is identical to `POST /api/client/activate` — clients reuse the same
+token storage and local verification path. The returned token has a fresh
+`issued_at`.
+
+Restore is a lookup-and-reissue: it **never** creates an activation row, consumes a
+device seat, or reactivates a `deactivated` activation. It re-validates License
+state online on every call, so a disabled, revoked, expired, or archived-Product
+License cannot be restored. It is idempotent — repeated calls return the same
+License and only refresh `last_seen_at`.
+
+Errors:
+
+- `NO_ACTIVATION` (`404`) — the device has no active activation for this product
+  (including the case where it only has a `deactivated` activation). This is the
+  client's signal to fall back to `POST /api/client/activate` with an activation
+  code.
+- `PRODUCT_NOT_FOUND` (`404`) — no product with that `product_code`
+- `PRODUCT_MISMATCH` (`409`) — the product is archived
+- `LICENSE_DISABLED` / `LICENSE_REVOKED` / `LICENSE_EXPIRED` (`403`) — License is
+  no longer serviceable
+- `BAD_REQUEST` (`400`) — request shape invalid
+
+Restore depends on `machine_hash` being **identical after an uninstall+reinstall**.
+If a device's recomputed hash differs, restore returns `NO_ACTIVATION` and the
+client must use the activation-code flow.
+
 ## Admin API
 
 ### Auth

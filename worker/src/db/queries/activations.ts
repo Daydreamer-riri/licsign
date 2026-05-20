@@ -1,5 +1,42 @@
 import { first, all, run } from "../d1";
-import type { ActivationRow } from "../models";
+import type { ActivationRow, LicenseWithProductRow } from "../models";
+
+export interface ActivationLicenseRow extends LicenseWithProductRow {
+  activation_id: string;
+}
+
+/**
+ * Finds the active activation for a device on a License that belongs to the
+ * given Product code. Backs the restore flow. Matches `status = 'active'` only;
+ * if a device has more than one active activation for the Product, the most
+ * recently used one wins.
+ */
+export async function findActiveByMachineAndProduct(
+  db: D1Database,
+  machineHash: string,
+  productCode: string,
+): Promise<ActivationLicenseRow | null> {
+  return first<ActivationLicenseRow>(
+    db
+      .prepare(
+        `SELECT
+          licenses.*,
+          products.code AS product_code,
+          products.status AS product_status,
+          products.issuer_id AS product_issuer_id,
+          activations.id AS activation_id
+         FROM activations
+         JOIN licenses ON licenses.id = activations.license_id
+         JOIN products ON products.id = licenses.product_id
+         WHERE activations.machine_hash = ?
+           AND products.code = ?
+           AND activations.status = 'active'
+         ORDER BY activations.last_seen_at DESC, activations.activated_at DESC
+         LIMIT 1`,
+      )
+      .bind(machineHash, productCode),
+  );
+}
 
 export async function findByLicenseAndMachine(
   db: D1Database,

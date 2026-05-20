@@ -75,6 +75,11 @@ export const deactivateSchema = z.object({
   machine_hash: machineHashSchema
 });
 
+export const restoreSchema = z.object({
+  product_code: productCodeSchema,
+  machine_hash: machineHashSchema
+});
+
 export const trialRequestSchema = z.object({
   product_code: productCodeSchema,
   machine_hash: machineHashSchema,

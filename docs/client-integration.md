@@ -32,6 +32,10 @@ There is also a **trial** path (`POST /api/client/trial`) that issues a
 short-lived Offline License **without** an Activation Code, when the product has
 an open trial window.
 
+After a reinstall wipes the stored token, a device that was already activated can
+recover its Offline License with `POST /api/client/restore` — again **without** an
+Activation Code — using only its `machine_hash` (§5.5).
+
 ### Terminology
 
 This guide uses the project's canonical vocabulary from
@@ -309,6 +313,51 @@ if the device was not currently active.
 > see §8. Deactivate is for "I am moving my license to a different TV", not for
 > "revoke this immediately".
 
+### 5.5 `POST /api/client/restore`
+
+Re-obtains the Offline License for a device that **already has an active
+activation**, using only `machine_hash` + `product_code` — **no Activation Code**.
+This is the recovery path for a plain uninstall+reinstall: the stored token is gone
+but the physical device, and therefore its `machine_hash`, is unchanged.
+
+**Request:**
+
+```json
+{
+  "product_code": "flow",
+  "machine_hash": "e3b0c442...b7852b855"
+}
+```
+
+Both fields are required; restore takes no device metadata.
+
+**Response `200`:** identical shape to `activate` — a paid token (`kind` absent,
+`license_id` set), with a fresh `issued_at`. Reuse the same storage and
+verification path.
+
+**Restore is a lookup-and-reissue, never an establish.** It only matches an
+**active** activation; it never creates an activation row, consumes a seat, or
+reactivates a `deactivated` activation. It re-validates License state online every
+call, so a disabled/revoked/expired License — or one whose Product is archived —
+cannot be restored. It is idempotent: repeated calls return the same License and
+only refresh `last_seen`.
+
+**Errors:**
+
+| `error` | HTTP | Meaning | Client action |
+|---|---|---|---|
+| `NO_ACTIVATION` | 404 | This device has no active activation for the product (or only a `deactivated` one). | Fall back to the Activation Code flow (§5.2). |
+| `PRODUCT_NOT_FOUND` | 404 | No product with that `product_code`. | Configuration error — surface it. |
+| `PRODUCT_MISMATCH` | 409 | The product is archived. | The product no longer issues tokens. |
+| `LICENSE_DISABLED` / `LICENSE_REVOKED` / `LICENSE_EXPIRED` | 403 | License is no longer serviceable. | Treat as not licensed. |
+| `BAD_REQUEST` | 400 | Request shape invalid. | Fix the request. |
+| `SERVER_ERROR` | 500 | Server fault. | Transient — retry with backoff. |
+
+> Restore works **only** if `machine_hash` is identical after the reinstall (§4).
+> If a device's recomputed hash differs, restore returns `NO_ACTIVATION` and the
+> user must re-enter their Activation Code. Verify reinstall-stability of your
+> device-identity recipe before relying on this endpoint.
+
 ---
 
 ## 6. Local verification algorithm
@@ -399,8 +448,13 @@ offline** — §8 covers optional online re-validation.
 
 **ACQUIRE** (no valid token):
 
+- **Try restore first.** Call `/api/client/restore` with `product_code` +
+  `machine_hash`. On `200` the device was already activated (e.g. this is a
+  reinstall) — store the `token` and go to *LICENSED*, no user input needed. On
+  `NO_ACTIVATION` (404), fall through to the steps below. This makes recovery
+  after a reinstall seamless.
 - If the product has a trial and the user has not consumed it, you may call
-  `/api/client/trial` first for a no-code trial. On `TRIAL_INACTIVE` or
+  `/api/client/trial` for a no-code trial. On `TRIAL_INACTIVE` or
   `PRODUCT_NOT_FOUND`, fall through to code entry.
 - Prompt the user for an Activation Code → call `/api/client/activate`.
 - On `200`: store the `token`, go to *LICENSED*.
@@ -416,8 +470,10 @@ offline** — §8 covers optional online re-validation.
 **Persist the Activation Code.** After a successful paid activation, store the
 `product_code` + `activation_code` alongside the token. The code is a bearer
 credential, not the license, so storing it is fine — and it lets the client
-renew an expired token, re-activate after a reinstall on the same device, or
-run the optional re-validation in §8 without re-prompting the user.
+renew an expired token or run the optional re-validation in §8 without
+re-prompting the user. (Recovery after a reinstall does not need the stored code —
+that is what `/api/client/restore` is for — but app-private storage is itself
+wiped by a reinstall, so the persisted code does not survive one either.)
 
 **Offline at launch.** If verification fails *only* because the token expired and
 the device has no network, the client cannot renew. Show a "license expired,
@@ -478,8 +534,10 @@ You do not need to deactivate the trial — trial activations carry no seat quot
 - [ ] Base URL, `product_code`, and expected `issuer` are configured.
 - [ ] Embedded `kid` → public-key map contains every currently-valid signing key.
 - [ ] `machine_hash` derivation is stable across updates and restarts.
-- [ ] `activate` / `trial` / `deactivate` requests match §5; `Content-Type` is
-      `application/json`; no `Authorization` header is sent.
+- [ ] `activate` / `restore` / `trial` / `deactivate` requests match §5;
+      `Content-Type` is `application/json`; no `Authorization` header is sent.
+- [ ] `machine_hash` is reinstall-stable, and the launch flow tries `restore`
+      before prompting for an Activation Code (§7).
 - [ ] Errors are branched on the `error` string, not `message`.
 - [ ] Offline verification implements every step in §6, verifying over the raw
       token segments and converting the signature encoding if needed.
@@ -514,11 +572,12 @@ verification as described above.
 | `error` | Endpoints |
 |---|---|
 | `INVALID_CODE` | `activate`, `deactivate` |
-| `PRODUCT_MISMATCH` | `activate`, `deactivate` |
-| `PRODUCT_NOT_FOUND` | `trial` |
-| `LICENSE_DISABLED` | `activate` |
-| `LICENSE_REVOKED` | `activate` |
-| `LICENSE_EXPIRED` | `activate` |
+| `PRODUCT_MISMATCH` | `activate`, `deactivate`, `restore` |
+| `PRODUCT_NOT_FOUND` | `trial`, `restore` |
+| `NO_ACTIVATION` | `restore` |
+| `LICENSE_DISABLED` | `activate`, `restore` |
+| `LICENSE_REVOKED` | `activate`, `restore` |
+| `LICENSE_EXPIRED` | `activate`, `restore` |
 | `DEVICE_LIMIT_REACHED` | `activate` |
 | `TRIAL_INACTIVE` | `trial` |
 | `BAD_REQUEST` | all |

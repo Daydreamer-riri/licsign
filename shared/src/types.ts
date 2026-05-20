@@ -11,6 +11,7 @@ export type ClientActivationError =
   | "LICENSE_EXPIRED"
   | "PRODUCT_MISMATCH"
   | "PRODUCT_NOT_FOUND"
+  | "NO_ACTIVATION"
   | "DEVICE_LIMIT_REACHED"
   | "TRIAL_INACTIVE"
   | "BAD_REQUEST"
