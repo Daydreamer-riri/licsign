@@ -61,16 +61,14 @@ Response:
 }
 ```
 
-Stable activation errors:
+Stable `POST /api/client/activate` errors:
 
 - `INVALID_CODE`
 - `LICENSE_DISABLED`
 - `LICENSE_REVOKED`
 - `LICENSE_EXPIRED`
 - `PRODUCT_MISMATCH`
-- `PRODUCT_NOT_FOUND`
 - `DEVICE_LIMIT_REACHED`
-- `TRIAL_INACTIVE`
 - `BAD_REQUEST`
 - `SERVER_ERROR`
 

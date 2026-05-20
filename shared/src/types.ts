@@ -12,7 +12,6 @@ export type ClientActivationError =
   | "PRODUCT_MISMATCH"
   | "PRODUCT_NOT_FOUND"
   | "DEVICE_LIMIT_REACHED"
-  | "INVALID_MACHINE"
   | "TRIAL_INACTIVE"
   | "BAD_REQUEST"
   | "SERVER_ERROR";

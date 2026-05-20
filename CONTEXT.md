@@ -25,7 +25,9 @@ A user-facing code that can be exchanged online for a signed offline license.
 _Avoid_: License key, token
 
 **Offline License**:
-A signed artifact stored by the client and verified locally after activation.
+A signed artifact the client stores and verifies locally; it is either a paid
+license redeemed from an Activation Code, or a trial issued directly by the trial
+endpoint without one.
 _Avoid_: Activation code
 
 ## Relationships
@@ -35,7 +37,9 @@ _Avoid_: Activation code
 - An **Admin** belongs to exactly one **Issuer**.
 - An **API Key** belongs to exactly one **Issuer**.
 - An **API Key** may be created or owned by an **Admin**, but it is still a distinct **Actor**.
-- An **Activation Code** can produce an **Offline License** during client activation.
+- An **Activation Code** can produce a paid **Offline License** during client
+  activation; the trial endpoint produces a trial **Offline License** without an
+  **Activation Code**.
 
 ## Example dialogue
 

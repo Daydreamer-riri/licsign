@@ -14,7 +14,7 @@ TV native clients.
   activation, audit logs, and LicenseGate compatibility.
 - `worker/src/crypto/`: signing helpers.
 - `shared/src/`: shared request schemas and response/types.
-- `docs/`: architecture, API, Android TV verification, future UI, multi-issuer,
+- `docs/`: architecture, API, client integration, future UI, multi-issuer,
   and key rotation notes.
 
 ## Commands
@@ -146,7 +146,9 @@ Update docs whenever behavior changes:
 
 - `docs/design.md` for architecture and tradeoffs.
 - `docs/api.md` for request/response contracts.
-- `docs/android-tv-verification.md` for client verification implications.
+- `docs/client-integration.md` (platform-agnostic) and
+  `docs/client-integration-kotlin.md` (Kotlin reference) for client integration
+  and local verification implications.
 - `docs/key-rotation.md` for signing key changes.
 - `docs/future-*.md` for intentionally deferred work.
 
