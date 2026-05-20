@@ -1,19 +1,20 @@
-# Future Admin UI
+# Admin UI
 
-V1 is API-only. The admin UI is built as React + Vite + TypeScript with
-shadcn/ui + Tailwind CSS, served by Cloudflare Workers Static Assets from the
+**Status: implemented.** The admin UI is a React + Vite + TypeScript SPA built
+with shadcn/ui + Tailwind CSS, served by Cloudflare Workers Static Assets from the
 same Worker deployment.
+
+The information architecture is product-scoped — see
+`docs/adr/0004-product-scoped-admin-ui-ia.md`.
 
 ## Pages
 
 - Login
-- Dashboard (simplified: product/license counts + recent paid license activations, no charts)
-- Products
-- Batch generation
-- Batches
-- Licenses (search + pagination)
-- License detail
-- Audit log
+- Products grid (home) — product cards, global stats, recent activations
+- Product `/products/:id` — Overview / Batches / Licenses / Settings tabs
+- Batch detail and License detail, nested under the product
+- Settings — Admins, Audit Log
+- ⌘K command palette for cross-product product/license search
 
 ## Authentication
 
@@ -61,6 +62,8 @@ the same permissions within that issuer; role-based access control is deferred.
 - `GET /api/admin/me`
 - `GET /api/admin/admins`
 - `POST /api/admin/admins`
+- `GET /api/admin/products/:id`
+- `GET /api/admin/products/:id/overview`
 - `GET /api/admin/dashboard/stats`
 - `GET /api/admin/audit-logs`
 

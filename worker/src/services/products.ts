@@ -49,8 +49,23 @@ function resolveTrialFields(
   return { enabled, start_at, end_at, ttl_seconds };
 }
 
-export async function listProducts(db: D1Database, issuerId: string): Promise<ProductRow[]> {
+export async function listProducts(
+  db: D1Database,
+  issuerId: string,
+): Promise<productQueries.ProductWithLicenseCount[]> {
   return productQueries.list(db, issuerId);
+}
+
+export async function getProduct(
+  db: D1Database,
+  issuerId: string,
+  productId: string,
+): Promise<ProductRow> {
+  const product = await productQueries.findById(db, productId, issuerId);
+  if (!product) {
+    throw new ApiError(404, "NOT_FOUND", "Product not found");
+  }
+  return product;
 }
 
 export async function createProduct(

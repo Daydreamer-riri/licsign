@@ -11,7 +11,7 @@
     "dev": "wrangler dev --config worker/wrangler.jsonc",
     "deploy": "pnpm --filter @licsign/admin build && pnpm db:migrate:remote && wrangler deploy --config worker/wrangler.jsonc",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "vitest run",
+    "test": "vitest run && pnpm --filter @licsign/admin test",
     "db:migrate:local": "wrangler d1 migrations apply license_service --local --config worker/wrangler.jsonc",
     "db:migrate:remote": "wrangler d1 migrations apply license_service --remote --config worker/wrangler.jsonc",
     "bootstrap": "node worker/scripts/bootstrap.mjs",

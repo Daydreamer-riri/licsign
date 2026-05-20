@@ -1,8 +1,14 @@
-import { createContext, useContext, useEffect, useState, useCallback } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useState,
+  useCallback,
+} from "react";
 import type { ReactNode } from "react";
-import { api } from "./api";
+import { api, setUnauthorizedHandler } from "./lib/api";
 
-interface AdminInfo {
+export interface AdminInfo {
   issuerId: string;
   issuerName: string;
   publicUserId: string;
@@ -25,13 +31,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
-      const res = await api.get("/api/admin/auth/me");
-      if (res.ok) {
-        const data = await res.json();
-        setAdmin(data.admin);
-      } else {
-        setAdmin(null);
-      }
+      const data = await api.get<{ admin: AdminInfo }>("/api/admin/auth/me");
+      setAdmin(data.admin);
     } catch {
       setAdmin(null);
     } finally {
@@ -40,22 +41,31 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }, []);
 
   useEffect(() => {
+    // An expired session mid-use clears auth, which bounces to /login.
+    setUnauthorizedHandler(() => setAdmin(null));
+    return () => setUnauthorizedHandler(null);
+  }, []);
+
+  useEffect(() => {
     refresh();
   }, [refresh]);
 
-  const login = async (email: string, password: string) => {
-    const res = await api.post("/api/admin/auth/login", { email, password });
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({ message: "Login failed" }));
-      throw new Error(err.message || "Login failed");
-    }
-    await refresh();
-  };
+  const login = useCallback(
+    async (email: string, password: string) => {
+      await api.post("/api/admin/auth/login", { email, password });
+      await refresh();
+    },
+    [refresh],
+  );
 
-  const logout = async () => {
-    await api.post("/api/admin/auth/logout", {});
+  const logout = useCallback(async () => {
+    try {
+      await api.post("/api/admin/auth/logout", {});
+    } catch {
+      // Even if the server call fails, drop the client session.
+    }
     setAdmin(null);
-  };
+  }, []);
 
   return (
     <AuthContext value={{ admin, loading, login, logout, refresh }}>

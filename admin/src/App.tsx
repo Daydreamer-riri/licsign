@@ -1,21 +1,37 @@
-import { Routes, Route, Navigate } from "react-router";
-import { AuthProvider, useAuth } from "./auth";
-import { LoginPage } from "./pages/Login";
-import { DashboardPage } from "./pages/Dashboard";
-import { ProductsPage } from "./pages/Products";
-import { BatchesPage } from "./pages/Batches";
-import { BatchDetailPage } from "./pages/BatchDetail";
-import { LicensesPage } from "./pages/Licenses";
-import { LicenseDetailPage } from "./pages/LicenseDetail";
-import { AdminsPage } from "./pages/Admins";
-import { AuditLogsPage } from "./pages/AuditLogs";
-import { Layout } from "./components/Layout";
+import { Navigate, Route, Routes } from "react-router";
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+import { AuthProvider, useAuth } from "./auth";
+import { AppShell } from "@/components/AppShell";
+import { ScopeProvider } from "@/components/ScopeContext";
+import { CenteredSpinner } from "@/components/states";
+import { LoginPage } from "./pages/Login";
+import { ProductsPage } from "./pages/Products";
+import { ProductLayout } from "./pages/product/ProductLayout";
+import { ProductOverviewPage } from "./pages/product/Overview";
+import { ProductBatchesPage } from "./pages/product/Batches";
+import { BatchDetailPage } from "./pages/product/BatchDetail";
+import { ProductLicensesPage } from "./pages/product/Licenses";
+import { LicenseDetailPage } from "./pages/product/LicenseDetail";
+import { ProductSettingsPage } from "./pages/product/Settings";
+import { SettingsLayout } from "./pages/settings/SettingsLayout";
+import { AdminsPage } from "./pages/settings/Admins";
+import { AuditPage } from "./pages/settings/Audit";
+
+function ProtectedLayout() {
   const { admin, loading } = useAuth();
-  if (loading) return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  if (loading) {
+    return (
+      <div className="flex min-h-dvh items-center justify-center">
+        <CenteredSpinner />
+      </div>
+    );
+  }
   if (!admin) return <Navigate to="/login" replace />;
-  return <>{children}</>;
+  return (
+    <ScopeProvider>
+      <AppShell />
+    </ScopeProvider>
+  );
 }
 
 export function App() {
@@ -23,26 +39,23 @@ export function App() {
     <AuthProvider>
       <Routes>
         <Route path="/login" element={<LoginPage />} />
-        <Route
-          path="/*"
-          element={
-            <ProtectedRoute>
-              <Layout>
-                <Routes>
-                  <Route index element={<DashboardPage />} />
-                  <Route path="products" element={<ProductsPage />} />
-                  <Route path="batches" element={<BatchesPage />} />
-                  <Route path="batches/:id" element={<BatchDetailPage />} />
-                  <Route path="licenses" element={<LicensesPage />} />
-                  <Route path="licenses/:id" element={<LicenseDetailPage />} />
-                  <Route path="admins" element={<AdminsPage />} />
-                  <Route path="audit-logs" element={<AuditLogsPage />} />
-                  <Route path="*" element={<Navigate to="/" replace />} />
-                </Routes>
-              </Layout>
-            </ProtectedRoute>
-          }
-        />
+        <Route element={<ProtectedLayout />}>
+          <Route index element={<ProductsPage />} />
+          <Route path="products/:id" element={<ProductLayout />}>
+            <Route index element={<ProductOverviewPage />} />
+            <Route path="batches" element={<ProductBatchesPage />} />
+            <Route path="batches/:batchId" element={<BatchDetailPage />} />
+            <Route path="licenses" element={<ProductLicensesPage />} />
+            <Route path="licenses/:licenseId" element={<LicenseDetailPage />} />
+            <Route path="settings" element={<ProductSettingsPage />} />
+          </Route>
+          <Route path="settings" element={<SettingsLayout />}>
+            <Route index element={<Navigate to="/settings/admins" replace />} />
+            <Route path="admins" element={<AdminsPage />} />
+            <Route path="audit" element={<AuditPage />} />
+          </Route>
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Route>
       </Routes>
     </AuthProvider>
   );

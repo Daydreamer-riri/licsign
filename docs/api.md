@@ -133,8 +133,15 @@ purchased activation code.
 ### Products
 
 - `GET /api/admin/products`
+- `GET /api/admin/products/:id`
+- `GET /api/admin/products/:id/overview`
 - `POST /api/admin/products`
 - `PATCH /api/admin/products/:id`
+
+`GET /api/admin/products` returns each product with a `license_count`.
+`GET /api/admin/products/:id/overview` returns an issuer-scoped summary —
+license counts by status, batch count, and recent paid activations for the
+product. Both are read-only and back the Admin UI product cards and Overview tab.
 
 Create product body:
 

@@ -127,6 +127,6 @@ Add email/password Admin authentication with PBKDF2-SHA256 password hashes and D
 ## Further Notes
 
 - The glossary distinguishes Admin from API Key; implementation, UI copy, docs, and tests should keep that language.
-- Existing ADRs already cover PBKDF2 password hashing and D1-backed Admin sessions. No new ADR is needed unless implementation diverges.
+- ADRs 0001–0003 cover PBKDF2 hashing, D1 sessions, and audit placement. ADR-0004 records the product-scoped UI information architecture, which supersedes the flat page list in this PRD's "Implementation Decisions".
 - Current docs still contain API-only/deferred language in places; update those docs as the feature lands.
 - The UI must remain honest about the offline-license model: Activation Codes are exchanged for signed Offline Licenses, and existing Offline Licenses remain locally verifiable until their own validity window ends.

@@ -1,14 +1,29 @@
 import { first, all, run } from "../d1";
 import type { ProductRow } from "../models";
 
+export interface ProductWithLicenseCount extends ProductRow {
+  license_count: number;
+}
+
 export async function list(
   db: D1Database,
   issuerId: string,
-): Promise<ProductRow[]> {
-  return all<ProductRow>(
+): Promise<ProductWithLicenseCount[]> {
+  return all<ProductWithLicenseCount>(
     db
-      .prepare("SELECT * FROM products WHERE issuer_id = ? ORDER BY created_at DESC")
-      .bind(issuerId),
+      .prepare(
+        `SELECT products.*, COALESCE(counts.license_count, 0) AS license_count
+         FROM products
+         LEFT JOIN (
+           SELECT product_id, COUNT(*) AS license_count
+           FROM licenses
+           WHERE issuer_id = ?
+           GROUP BY product_id
+         ) counts ON counts.product_id = products.id
+         WHERE products.issuer_id = ?
+         ORDER BY products.created_at DESC`,
+      )
+      .bind(issuerId, issuerId),
   );
 }
 

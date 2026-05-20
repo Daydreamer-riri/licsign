@@ -2,7 +2,7 @@ import { Hono } from "hono";
 import { z } from "zod";
 import type { AdminContext, Env } from "../types";
 import { adminMiddleware } from "../services/auth";
-import { createProduct, listProducts, updateProduct } from "../services/products";
+import { createProduct, getProduct, listProducts, updateProduct } from "../services/products";
 import { createBatch, listBatches, readBatch } from "../services/batches";
 import {
   exportLicensesCsv,
@@ -13,6 +13,7 @@ import {
 } from "../services/licenses";
 import { createAdmin, listAdmins } from "../services/adminAccounts";
 import { getDashboardStats } from "../services/dashboard";
+import { getProductOverview } from "../services/productOverview";
 import { queryAuditLogs } from "../services/auditQuery";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: { admin: AdminContext } }>();
@@ -36,6 +37,16 @@ adminRoutes.patch("/products/:id", async (c) => {
   return c.json(
     await updateProduct(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await c.req.json())
   );
+});
+
+adminRoutes.get("/products/:id/overview", async (c) => {
+  const admin = c.get("admin");
+  return c.json(await getProductOverview(c.env.DB, admin.issuerId, c.req.param("id")));
+});
+
+adminRoutes.get("/products/:id", async (c) => {
+  const admin = c.get("admin");
+  return c.json(await getProduct(c.env.DB, admin.issuerId, c.req.param("id")));
 });
 
 adminRoutes.get("/batches", async (c) => {

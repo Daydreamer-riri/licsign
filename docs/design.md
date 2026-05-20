@@ -22,11 +22,10 @@ Implemented in V1:
 - One-time online activation and signed offline license token.
 - Device limit enforcement using client-provided `machine_hash`.
 - License disable, enable, revoke, search, detail, and CSV export.
+- Email/password Admin sessions and a same-origin browser Admin UI.
 
 Deferred:
 
-- Admin UI.
-- Email/password admin sessions.
 - Billing.
 - Floating seats.
 - Per-launch online authorization.
@@ -82,6 +81,14 @@ consumes paid-license quota.
 V1 does not throttle the trial endpoint. If trial-token harvesting becomes a real
 problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
 `products.trial_recovery_enabled` flag without breaking the existing API.
+
+## Admin UI
+
+The Admin UI is a same-origin React + Vite SPA (shadcn/ui + Tailwind) served from
+the Worker via Static Assets. Its information architecture is **product-scoped**:
+the home route is a product grid, and Batches, Licenses, and product Settings are
+nested under `/products/:id/*`. Cross-product lookup is a ⌘K command palette, not
+flat global lists. See `docs/adr/0004-product-scoped-admin-ui-ia.md`.
 
 ## Revocation Tradeoff
 
