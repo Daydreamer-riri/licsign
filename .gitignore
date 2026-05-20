@@ -148,3 +148,7 @@ vite.config.ts.timestamp-*
 # Cloudflare Wrangler local state
 .wrangler/
 **/.wrangler/
+
+# React Router framework mode
+.react-router/
+admin/build/

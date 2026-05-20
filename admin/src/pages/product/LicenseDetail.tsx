@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { Link, useParams } from "react-router";
+import { Link, useRevalidator } from "react-router";
 import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { load } from "@/lib/load";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { Activation, License } from "@/lib/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
+import { RouteError } from "@/components/RouteError";
 import { StatusBadge } from "@/components/StatusBadge";
-import { CenteredSpinner, ErrorState } from "@/components/states";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -23,7 +23,18 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Route } from "./+types/LicenseDetail";
 import { useProduct } from "./ProductLayout";
+
+export { RouteError as ErrorBoundary };
+
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  return load(
+    api.get<{ license: License; activations: Activation[] }>(
+      `/api/admin/licenses/${params.licenseId}`,
+    ),
+  );
+}
 
 type PendingAction = "disable" | "enable" | "revoke" | null;
 
@@ -69,35 +80,30 @@ function DetailRow({
   );
 }
 
-export function LicenseDetailPage() {
+export default function LicenseDetailPage({ loaderData }: Route.ComponentProps) {
+  const { license, activations } = loaderData;
   const { product } = useProduct();
-  const { licenseId } = useParams<{ licenseId: string }>();
+  const revalidator = useRevalidator();
   const [pending, setPending] = useState<PendingAction>(null);
   const [revokeReason, setRevokeReason] = useState("");
 
-  const { data, loading, error, reload } = useApi(
-    () =>
-      api.get<{ license: License; activations: Activation[] }>(
-        `/api/admin/licenses/${licenseId}`,
-      ),
-    [licenseId],
-  );
+  const activeCount = activations.filter((a) => a.status === "active").length;
 
   const runAction = async () => {
-    if (!pending || !data) return;
+    if (!pending) return;
     try {
       if (pending === "revoke") {
         await api.post(
-          `/api/admin/licenses/${data.license.id}/revoke`,
+          `/api/admin/licenses/${license.id}/revoke`,
           revokeReason.trim() ? { reason: revokeReason.trim() } : {},
         );
       } else {
-        await api.post(`/api/admin/licenses/${data.license.id}/${pending}`, {});
+        await api.post(`/api/admin/licenses/${license.id}/${pending}`, {});
       }
       toast.success(`License ${pending}d`);
       setPending(null);
       setRevokeReason("");
-      reload();
+      revalidator.revalidate();
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "Action failed. Try again.",
@@ -105,10 +111,6 @@ export function LicenseDetailPage() {
       throw err;
     }
   };
-
-  const license = data?.license;
-  const activations = data?.activations ?? [];
-  const activeCount = activations.filter((a) => a.status === "active").length;
 
   return (
     <div className="flex flex-col gap-6">
@@ -120,161 +122,148 @@ export function LicenseDetailPage() {
         Licenses
       </Link>
 
-      {loading && <CenteredSpinner />}
-      {error && <ErrorState message={error} onRetry={reload} />}
-
-      {license && (
-        <>
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2
-              className="font-mono text-lg font-semibold tracking-tight"
-              translate="no"
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <h2
+          className="font-mono text-lg font-semibold tracking-tight"
+          translate="no"
+        >
+          {license.activation_code}
+        </h2>
+        <div className="flex items-center gap-2">
+          <StatusBadge status={license.status} />
+          {(license.status === "available" ||
+            license.status === "activated") && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPending("disable")}
             >
-              {license.activation_code}
-            </h2>
-            <div className="flex items-center gap-2">
-              <StatusBadge status={license.status} />
-              {(license.status === "available" ||
-                license.status === "activated") && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPending("disable")}
-                >
-                  Disable
-                </Button>
-              )}
-              {license.status === "disabled" && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setPending("enable")}
-                >
-                  Enable
-                </Button>
-              )}
-              {license.status !== "revoked" && (
-                <Button
-                  variant="destructive"
-                  size="sm"
-                  onClick={() => setPending("revoke")}
-                >
-                  Revoke
-                </Button>
-              )}
-            </div>
-          </div>
+              Disable
+            </Button>
+          )}
+          {license.status === "disabled" && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPending("enable")}
+            >
+              Enable
+            </Button>
+          )}
+          {license.status !== "revoked" && (
+            <Button
+              variant="destructive"
+              size="sm"
+              onClick={() => setPending("revoke")}
+            >
+              Revoke
+            </Button>
+          )}
+        </div>
+      </div>
 
-          <Alert>
-            <TriangleAlertIcon />
-            <AlertTitle>Offline licenses are not instantly revoked</AlertTitle>
-            <AlertDescription>
-              Disable and revoke only block future online activation, refresh,
-              and compatibility checks. Already-issued offline licenses stay
-              valid on devices until their own expiry.
-            </AlertDescription>
-          </Alert>
+      <Alert>
+        <TriangleAlertIcon />
+        <AlertTitle>Offline licenses are not instantly revoked</AlertTitle>
+        <AlertDescription>
+          Disable and revoke only block future online activation, refresh, and
+          compatibility checks. Already-issued offline licenses stay valid on
+          devices until their own expiry.
+        </AlertDescription>
+      </Alert>
 
-          <Card>
-            <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
-              <DetailRow
-                label="Product"
-                value={
-                  <span className="font-mono text-xs" translate="no">
-                    {license.product_code}
-                  </span>
-                }
-              />
-              <DetailRow
-                label="Devices"
-                value={
-                  <span className="tabular-nums">
-                    {activeCount}/{license.max_devices}
-                  </span>
-                }
-              />
-              <DetailRow label="Issued to" value={license.issued_to || "—"} />
-              <DetailRow
-                label="Expires"
-                value={formatDate(license.expires_at)}
-              />
-              <DetailRow
-                label="First activated"
-                value={formatDate(license.activated_at)}
-              />
-              <DetailRow
-                label="Created"
-                value={formatDate(license.created_at)}
-              />
-              {license.batch_id && (
-                <DetailRow
-                  label="Batch"
-                  value={
-                    <Link
-                      to={`/products/${product.id}/batches/${license.batch_id}`}
-                      className="text-foreground underline-offset-4 hover:underline"
+      <Card>
+        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
+          <DetailRow
+            label="Product"
+            value={
+              <span className="font-mono text-xs" translate="no">
+                {license.product_code}
+              </span>
+            }
+          />
+          <DetailRow
+            label="Devices"
+            value={
+              <span className="tabular-nums">
+                {activeCount}/{license.max_devices}
+              </span>
+            }
+          />
+          <DetailRow label="Issued to" value={license.issued_to || "—"} />
+          <DetailRow label="Expires" value={formatDate(license.expires_at)} />
+          <DetailRow
+            label="First activated"
+            value={formatDate(license.activated_at)}
+          />
+          <DetailRow label="Created" value={formatDate(license.created_at)} />
+          {license.batch_id && (
+            <DetailRow
+              label="Batch"
+              value={
+                <Link
+                  to={`/products/${product.id}/batches/${license.batch_id}`}
+                  className="text-foreground underline-offset-4 hover:underline"
+                >
+                  View batch
+                </Link>
+              }
+            />
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>
+            Activations{" "}
+            <span className="text-muted-foreground tabular-nums">
+              ({activations.length})
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          {activations.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+              This license has never been activated.
+            </p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">Machine Hash</TableHead>
+                  <TableHead scope="col">Device</TableHead>
+                  <TableHead scope="col">Platform</TableHead>
+                  <TableHead scope="col">Status</TableHead>
+                  <TableHead scope="col">Activated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {activations.map((a) => (
+                  <TableRow key={a.id}>
+                    <TableCell
+                      className="max-w-40 truncate font-mono text-xs"
+                      translate="no"
                     >
-                      View batch
-                    </Link>
-                  }
-                />
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>
-                Activations{" "}
-                <span className="text-muted-foreground tabular-nums">
-                  ({activations.length})
-                </span>
-              </CardTitle>
-            </CardHeader>
-            <CardContent className="px-0">
-              {activations.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  This license has never been activated.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">Machine Hash</TableHead>
-                      <TableHead scope="col">Device</TableHead>
-                      <TableHead scope="col">Platform</TableHead>
-                      <TableHead scope="col">Status</TableHead>
-                      <TableHead scope="col">Activated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {activations.map((a) => (
-                      <TableRow key={a.id}>
-                        <TableCell
-                          className="max-w-40 truncate font-mono text-xs"
-                          translate="no"
-                        >
-                          {a.machine_hash}
-                        </TableCell>
-                        <TableCell>{a.device_label || "—"}</TableCell>
-                        <TableCell className="text-muted-foreground">
-                          {a.platform || "—"}
-                        </TableCell>
-                        <TableCell>
-                          <StatusBadge status={a.status} />
-                        </TableCell>
-                        <TableCell className="text-muted-foreground tabular-nums">
-                          {formatDateTime(a.activated_at)}
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+                      {a.machine_hash}
+                    </TableCell>
+                    <TableCell>{a.device_label || "—"}</TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {a.platform || "—"}
+                    </TableCell>
+                    <TableCell>
+                      <StatusBadge status={a.status} />
+                    </TableCell>
+                    <TableCell className="text-muted-foreground tabular-nums">
+                      {formatDateTime(a.activated_at)}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       {pending && (
         <ConfirmDialog

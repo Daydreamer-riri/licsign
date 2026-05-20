@@ -1,43 +1,35 @@
-import { useEffect } from "react";
-import { Outlet, useOutletContext, useParams } from "react-router";
+import { Outlet, useRouteLoaderData } from "react-router";
 
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { load } from "@/lib/load";
 import type { Product } from "@/lib/types";
 import { ProductTabs } from "@/components/ProductTabs";
-import { useScope } from "@/components/ScopeContext";
+import { RouteError } from "@/components/RouteError";
 import { StatusBadge } from "@/components/StatusBadge";
-import { CenteredSpinner, ErrorState } from "@/components/states";
+import type { Route } from "./+types/ProductLayout";
 
-export interface ProductOutletContext {
-  product: Product;
-  reloadProduct: () => void;
-}
+export { RouteError as ErrorBoundary };
 
-/** Read the parent product context inside any product-scoped page. */
-export function useProduct(): ProductOutletContext {
-  return useOutletContext<ProductOutletContext>();
-}
-
-export function ProductLayout() {
-  const { id } = useParams<{ id: string }>();
-  const { setProduct } = useScope();
-  const { data: product, loading, error, reload } = useApi(
-    () => api.get<Product>(`/api/admin/products/${id}`),
-    [id],
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const product = await load(
+    api.get<Product>(`/api/admin/products/${params.id}`),
   );
+  return { product };
+}
 
-  useEffect(() => {
-    setProduct(product ?? null);
-    return () => setProduct(null);
-  }, [product, setProduct]);
-
-  if (loading) return <CenteredSpinner />;
-  if (error || !product) {
-    return (
-      <ErrorState message={error ?? "Product not found."} onRetry={reload} />
-    );
+/** Read the enclosing product from any product-scoped route. */
+export function useProduct(): { product: Product } {
+  const data = useRouteLoaderData("product") as
+    | { product: Product }
+    | undefined;
+  if (!data) {
+    throw new Error("useProduct must be used within the product route");
   }
+  return { product: data.product };
+}
+
+export default function ProductLayout({ loaderData }: Route.ComponentProps) {
+  const { product } = loaderData;
 
   return (
     <div className="flex flex-col gap-6">
@@ -58,11 +50,7 @@ export function ProductLayout() {
         </div>
         <ProductTabs productId={product.id} />
       </div>
-      <Outlet
-        context={
-          { product, reloadProduct: reload } satisfies ProductOutletContext
-        }
-      />
+      <Outlet />
     </div>
   );
 }

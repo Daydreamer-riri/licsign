@@ -1,15 +1,15 @@
 import { useState } from "react";
-import { Link } from "react-router";
+import { Link, useRevalidator } from "react-router";
 import { PackageIcon, PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { load } from "@/lib/load";
 import { formatDateTime } from "@/lib/format";
 import type { DashboardStats, ProductWithCount } from "@/lib/types";
 import { ProductFormDialog } from "@/components/ProductFormDialog";
+import { RouteError } from "@/components/RouteError";
 import { StatTile } from "@/components/StatTile";
 import { StatusBadge } from "@/components/StatusBadge";
-import { ErrorState } from "@/components/states";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +29,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -38,6 +37,17 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Route } from "./+types/Products";
+
+export { RouteError as ErrorBoundary };
+
+export async function clientLoader() {
+  const [products, stats] = await Promise.all([
+    load(api.get<{ products: ProductWithCount[] }>("/api/admin/products")),
+    load(api.get<DashboardStats>("/api/admin/dashboard/stats?limit=6")),
+  ]);
+  return { products: products.products, stats };
+}
 
 function ProductCard({ product }: { product: ProductWithCount }) {
   return (
@@ -81,23 +91,14 @@ function ProductCard({ product }: { product: ProductWithCount }) {
   );
 }
 
-export function ProductsPage() {
+export default function ProductsPage({ loaderData }: Route.ComponentProps) {
+  const { products, stats } = loaderData;
+  const revalidator = useRevalidator();
   const [createOpen, setCreateOpen] = useState(false);
-  const { data, loading, error, reload } = useApi(async () => {
-    const [products, stats] = await Promise.all([
-      api.get<{ products: ProductWithCount[] }>("/api/admin/products"),
-      api.get<DashboardStats>("/api/admin/dashboard/stats?limit=6"),
-    ]);
-    return { products: products.products, stats };
-  }, []);
 
-  const totalLicenses =
-    data?.products.reduce((sum, p) => sum + p.license_count, 0) ?? 0;
-  const trialCount =
-    data?.products.filter((p) => p.trial_enabled === 1).length ?? 0;
-  const productIdByCode = new Map(
-    data?.products.map((p) => [p.code, p.id]) ?? [],
-  );
+  const totalLicenses = products.reduce((sum, p) => sum + p.license_count, 0);
+  const trialCount = products.filter((p) => p.trial_enabled === 1).length;
+  const productIdByCode = new Map(products.map((p) => [p.code, p.id]));
 
   return (
     <div className="flex flex-col gap-6">
@@ -109,118 +110,101 @@ export function ProductsPage() {
         </Button>
       </div>
 
-      {loading && (
+      <div className="grid grid-cols-3 gap-3">
+        <StatTile label="Products" value={products.length} />
+        <StatTile label="Licenses" value={totalLicenses} />
+        <StatTile label="Trials Enabled" value={trialCount} />
+      </div>
+
+      {products.length === 0 ? (
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyMedia variant="icon">
+              <PackageIcon />
+            </EmptyMedia>
+            <EmptyTitle>No products yet</EmptyTitle>
+            <EmptyDescription>
+              Create your first product to start issuing licenses.
+            </EmptyDescription>
+          </EmptyHeader>
+          <EmptyContent>
+            <Button onClick={() => setCreateOpen(true)}>
+              <PlusIcon data-icon="inline-start" />
+              New Product
+            </Button>
+          </EmptyContent>
+        </Empty>
+      ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} />
           ))}
         </div>
       )}
 
-      {error && <ErrorState message={error} onRetry={reload} />}
-
-      {data && (
-        <>
-          <div className="grid grid-cols-3 gap-3">
-            <StatTile label="Products" value={data.products.length} />
-            <StatTile label="Licenses" value={totalLicenses} />
-            <StatTile label="Trials Enabled" value={trialCount} />
-          </div>
-
-          {data.products.length === 0 ? (
-            <Empty className="border">
-              <EmptyHeader>
-                <EmptyMedia variant="icon">
-                  <PackageIcon />
-                </EmptyMedia>
-                <EmptyTitle>No products yet</EmptyTitle>
-                <EmptyDescription>
-                  Create your first product to start issuing licenses.
-                </EmptyDescription>
-              </EmptyHeader>
-              <EmptyContent>
-                <Button onClick={() => setCreateOpen(true)}>
-                  <PlusIcon data-icon="inline-start" />
-                  New Product
-                </Button>
-              </EmptyContent>
-            </Empty>
+      <Card>
+        <CardHeader>
+          <CardTitle>Recent Activations</CardTitle>
+          <CardDescription>
+            Latest paid-license device activations.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="px-0">
+          {stats.recent_activations.length === 0 ? (
+            <p className="px-4 py-6 text-center text-sm text-muted-foreground">
+              No activations yet.
+            </p>
           ) : (
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {data.products.map((product) => (
-                <ProductCard key={product.id} product={product} />
-              ))}
-            </div>
-          )}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Recent Activations</CardTitle>
-              <CardDescription>
-                Latest paid-license device activations.
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="px-0">
-              {data.stats.recent_activations.length === 0 ? (
-                <p className="px-4 py-6 text-center text-sm text-muted-foreground">
-                  No activations yet.
-                </p>
-              ) : (
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead scope="col">Product</TableHead>
-                      <TableHead scope="col">Activation Code</TableHead>
-                      <TableHead scope="col">Device</TableHead>
-                      <TableHead scope="col">Activated</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.stats.recent_activations.map((a) => {
-                      const productId = a.product_code
-                        ? productIdByCode.get(a.product_code)
-                        : undefined;
-                      return (
-                        <TableRow key={a.activation_id}>
-                          <TableCell
-                            className="font-mono text-xs"
-                            translate="no"
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead scope="col">Product</TableHead>
+                  <TableHead scope="col">Activation Code</TableHead>
+                  <TableHead scope="col">Device</TableHead>
+                  <TableHead scope="col">Activated</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {stats.recent_activations.map((a) => {
+                  const productId = a.product_code
+                    ? productIdByCode.get(a.product_code)
+                    : undefined;
+                  return (
+                    <TableRow key={a.activation_id}>
+                      <TableCell className="font-mono text-xs" translate="no">
+                        {a.product_code ?? "—"}
+                      </TableCell>
+                      <TableCell className="font-mono text-xs" translate="no">
+                        {productId ? (
+                          <Link
+                            to={`/products/${productId}/licenses/${a.license_id}`}
+                            className="text-foreground underline-offset-4 hover:underline"
                           >
-                            {a.product_code ?? "—"}
-                          </TableCell>
-                          <TableCell className="font-mono text-xs" translate="no">
-                            {productId ? (
-                              <Link
-                                to={`/products/${productId}/licenses/${a.license_id}`}
-                                className="text-foreground underline-offset-4 hover:underline"
-                              >
-                                {a.activation_code}
-                              </Link>
-                            ) : (
-                              a.activation_code
-                            )}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground">
-                            {a.device_label || a.platform || "—"}
-                          </TableCell>
-                          <TableCell className="text-muted-foreground tabular-nums">
-                            {formatDateTime(a.activated_at)}
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              )}
-            </CardContent>
-          </Card>
-        </>
-      )}
+                            {a.activation_code}
+                          </Link>
+                        ) : (
+                          a.activation_code
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground">
+                        {a.device_label || a.platform || "—"}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground tabular-nums">
+                        {formatDateTime(a.activated_at)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
 
       <ProductFormDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={reload}
+        onCreated={() => revalidator.revalidate()}
       />
     </div>
   );

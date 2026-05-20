@@ -84,11 +84,15 @@ problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
 
 ## Admin UI
 
-The Admin UI is a same-origin React + Vite SPA (shadcn/ui + Tailwind) served from
-the Worker via Static Assets. Its information architecture is **product-scoped**:
-the home route is a product grid, and Batches, Licenses, and product Settings are
+The Admin UI is a same-origin React SPA (shadcn/ui + Tailwind) served from the
+Worker via Static Assets. It runs on React Router **framework mode** in SPA mode
+(`ssr: false`): routes are declared in `admin/src/routes.ts` and data pages load
+through `clientLoader`. Its information architecture is **product-scoped**: the
+home route is a product grid, and Batches, Licenses, and product Settings are
 nested under `/products/:id/*`. Cross-product lookup is a ⌘K command palette, not
-flat global lists. See `docs/adr/0004-product-scoped-admin-ui-ia.md`.
+flat global lists. See `docs/adr/0004-product-scoped-admin-ui-ia.md` for the
+information architecture and `docs/adr/0005-react-router-framework-mode-spa.md`
+for the rendering and data-loading model.
 
 ## Revocation Tradeoff
 

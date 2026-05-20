@@ -3,12 +3,12 @@ import { Link, useNavigate } from "react-router";
 import { PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { load } from "@/lib/load";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { ProductOverview } from "@/lib/types";
 import { BatchFormDialog } from "@/components/BatchFormDialog";
+import { RouteError } from "@/components/RouteError";
 import { StatTile } from "@/components/StatTile";
-import { CenteredSpinner, ErrorState } from "@/components/states";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -25,7 +25,16 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useProduct } from "./ProductLayout";
+import type { Route } from "./+types/Overview";
+
+export { RouteError as ErrorBoundary };
+
+export async function clientLoader({ params }: Route.ClientLoaderArgs) {
+  const overview = await load(
+    api.get<ProductOverview>(`/api/admin/products/${params.id}/overview`),
+  );
+  return { overview };
+}
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
   return (
@@ -36,22 +45,14 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
   );
 }
 
-export function ProductOverviewPage() {
-  const { product } = useProduct();
+export default function ProductOverviewPage({
+  loaderData,
+}: Route.ComponentProps) {
+  const { overview } = loaderData;
+  const { product } = overview;
+  const counts = overview.license_counts;
   const navigate = useNavigate();
   const [batchOpen, setBatchOpen] = useState(false);
-  const { data, loading, error, reload } = useApi(
-    () =>
-      api.get<ProductOverview>(`/api/admin/products/${product.id}/overview`),
-    [product.id],
-  );
-
-  if (loading) return <CenteredSpinner />;
-  if (error || !data) {
-    return <ErrorState message={error ?? "Failed to load."} onRetry={reload} />;
-  }
-
-  const counts = data.license_counts;
 
   return (
     <div className="flex flex-col gap-6">
@@ -67,7 +68,7 @@ export function ProductOverviewPage() {
         <StatTile label="Total Licenses" value={counts.total} />
         <StatTile label="Activated" value={counts.activated} />
         <StatTile label="Available" value={counts.available} />
-        <StatTile label="Batches" value={data.batch_count} />
+        <StatTile label="Batches" value={overview.batch_count} />
       </div>
 
       <div className="grid gap-6 lg:grid-cols-3">
@@ -79,7 +80,7 @@ export function ProductOverviewPage() {
             </CardDescription>
           </CardHeader>
           <CardContent className="px-0">
-            {data.recent_activations.length === 0 ? (
+            {overview.recent_activations.length === 0 ? (
               <p className="px-4 py-6 text-center text-sm text-muted-foreground">
                 No activations yet.
               </p>
@@ -93,7 +94,7 @@ export function ProductOverviewPage() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {data.recent_activations.map((a) => (
+                  {overview.recent_activations.map((a) => (
                     <TableRow key={a.activation_id}>
                       <TableCell className="font-mono text-xs" translate="no">
                         <Link

@@ -1,7 +1,8 @@
 import { useNavigate } from "react-router";
 import { LogOutIcon } from "lucide-react";
 
-import { useAuth } from "@/auth";
+import { api } from "@/lib/api";
+import type { AdminInfo } from "@/lib/types";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -14,16 +15,19 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 
-export function UserMenu() {
-  const { admin, logout } = useAuth();
+export function UserMenu({ admin }: { admin: AdminInfo }) {
   const navigate = useNavigate();
 
-  const email = admin?.actor.type === "admin" ? admin.actor.email : undefined;
+  const email = admin.actor.type === "admin" ? admin.actor.email : undefined;
   const display = email ?? "API Key";
   const initials = (email ? email.slice(0, 2) : "AK").toUpperCase();
 
   const handleLogout = async () => {
-    await logout();
+    try {
+      await api.post("/api/admin/auth/logout", {});
+    } catch {
+      // Even if the server call fails, drop the client session.
+    }
     navigate("/login", { replace: true });
   };
 
@@ -44,7 +48,7 @@ export function UserMenu() {
           >
             {display}
           </span>
-          {admin?.issuerName && (
+          {admin.issuerName && (
             <span className="truncate text-xs font-normal text-muted-foreground">
               {admin.issuerName}
             </span>

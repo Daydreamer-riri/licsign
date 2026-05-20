@@ -12,7 +12,7 @@
   // When users click the Deploy to Cloudflare button, Cloudflare provisions a fresh D1 in
   // their account and rewrites this id in the forked repo automatically.
   "assets": {
-    "directory": "../admin/dist",
+    "directory": "../admin/build/client",
     "binding": "ASSETS",
     "not_found_handling": "single-page-application"
   },

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useRevalidator } from "react-router";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
@@ -35,8 +36,9 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-export function ProductSettingsPage() {
-  const { product, reloadProduct } = useProduct();
+export default function ProductSettingsPage() {
+  const { product } = useProduct();
+  const revalidator = useRevalidator();
 
   const [code, setCode] = useState(product.code);
   const [name, setName] = useState(product.name);
@@ -81,7 +83,7 @@ export function ProductSettingsPage() {
       }
       await api.patch(`/api/admin/products/${product.id}`, body);
       toast.success("Product updated");
-      reloadProduct();
+      revalidator.revalidate();
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Failed to save changes.",
@@ -98,7 +100,7 @@ export function ProductSettingsPage() {
       });
       toast.success(archived ? "Product restored" : "Product archived");
       setArchivePending(false);
-      reloadProduct();
+      revalidator.revalidate();
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "Action failed.");
       throw err;
@@ -227,7 +229,9 @@ export function ProductSettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>{archived ? "Restore product" : "Archive product"}</CardTitle>
+          <CardTitle>
+            {archived ? "Restore product" : "Archive product"}
+          </CardTitle>
           <CardDescription>
             {archived
               ? "Restore this product so new batches can be created again."

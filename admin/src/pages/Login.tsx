@@ -1,9 +1,8 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
-import { Navigate } from "react-router";
+import { redirect, useNavigate } from "react-router";
 
-import { useAuth } from "@/auth";
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,25 +10,32 @@ import { Field, FieldGroup, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 
-export function LoginPage() {
-  const { admin, loading, login } = useAuth();
+/** Already-authenticated visitors skip the form and go straight to the app. */
+export async function clientLoader() {
+  try {
+    await api.get("/api/admin/auth/me");
+  } catch {
+    return null;
+  }
+  throw redirect("/");
+}
+
+export default function LoginPage() {
+  const navigate = useNavigate();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
-
-  if (loading) return null;
-  if (admin) return <Navigate to="/" replace />;
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
     setSubmitting(true);
     try {
-      await login(email, password);
+      await api.post("/api/admin/auth/login", { email, password });
+      navigate("/", { replace: true });
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Sign in failed.");
-    } finally {
       setSubmitting(false);
     }
   };

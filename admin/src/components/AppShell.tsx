@@ -1,7 +1,13 @@
 import { Fragment } from "react";
-import { Link, Outlet, useLocation } from "react-router";
+import {
+  Link,
+  Outlet,
+  useLocation,
+  useNavigation,
+  useRouteLoaderData,
+} from "react-router";
 
-import { useScope } from "@/components/ScopeContext";
+import type { AdminInfo, Product } from "@/lib/types";
 import { CommandMenu } from "@/components/CommandMenu";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { UserMenu } from "@/components/UserMenu";
@@ -21,7 +27,10 @@ interface Crumb {
 
 function useCrumbs(): Crumb[] {
   const { pathname } = useLocation();
-  const { product } = useScope();
+  // The product route exposes its loaded product; undefined outside it.
+  const productData = useRouteLoaderData("product") as
+    | { product: Product }
+    | undefined;
   const seg = pathname.split("/").filter(Boolean);
 
   if (seg[0] === "settings") {
@@ -34,7 +43,8 @@ function useCrumbs(): Crumb[] {
   if (seg[0] === "products" && seg[1]) {
     const crumbs: Crumb[] = [{ label: "Products", to: "/" }];
     const productPath = `/products/${seg[1]}`;
-    const name = product?.id === seg[1] ? product.name : "Product";
+    const name =
+      productData?.product.id === seg[1] ? productData.product.name : "Product";
     const section = seg[2];
 
     if (!section) {
@@ -93,9 +103,25 @@ function AppBreadcrumb() {
   );
 }
 
-export function AppShell() {
+/** Thin top progress bar shown while a route navigation is in flight. */
+function NavProgress() {
+  const navigation = useNavigation();
+  if (navigation.state === "idle") return null;
+  return (
+    <div
+      className="fixed inset-x-0 top-0 z-50 h-0.5 overflow-hidden"
+      role="status"
+      aria-label="Loading"
+    >
+      <div className="h-full w-full animate-pulse bg-primary" />
+    </div>
+  );
+}
+
+export function AppShell({ admin }: { admin: AdminInfo }) {
   return (
     <div className="min-h-screen bg-background">
+      <NavProgress />
       <a
         href="#main-content"
         className="sr-only focus:not-sr-only focus:fixed focus:top-3 focus:left-4 focus:z-50 focus:rounded-md focus:border focus:bg-background focus:px-3 focus:py-1.5 focus:text-sm focus:shadow-md"
@@ -119,7 +145,7 @@ export function AppShell() {
           <div className="ml-auto flex shrink-0 items-center gap-1">
             <CommandMenu />
             <ThemeToggle />
-            <UserMenu />
+            <UserMenu admin={admin} />
           </div>
         </div>
       </header>

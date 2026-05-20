@@ -2,7 +2,7 @@ import { Outlet } from "react-router";
 
 import { SettingsNav } from "@/components/SettingsNav";
 
-export function SettingsLayout() {
+export default function SettingsLayout() {
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-4">

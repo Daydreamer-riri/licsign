@@ -127,3 +127,11 @@ export interface Admin {
   created_at: string;
   updated_at: string;
 }
+
+/** The signed-in admin, as returned by `GET /api/admin/auth/me`. */
+export interface AdminInfo {
+  issuerId: string;
+  issuerName: string;
+  publicUserId: string;
+  actor: { type: string; adminId?: string; email?: string; apiKeyId?: string };
+}

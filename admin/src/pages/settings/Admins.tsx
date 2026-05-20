@@ -1,14 +1,15 @@
 import { useState } from "react";
 import type { FormEvent } from "react";
+import { useRevalidator } from "react-router";
 import { PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { useApi } from "@/lib/useApi";
+import { load } from "@/lib/load";
 import { formatDate } from "@/lib/format";
 import type { Admin } from "@/lib/types";
+import { RouteError } from "@/components/RouteError";
 import { StatusBadge } from "@/components/StatusBadge";
-import { CenteredSpinner, ErrorState } from "@/components/states";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -19,7 +20,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { Field, FieldDescription, FieldGroup, FieldLabel } from "@/components/ui/field";
+import {
+  Field,
+  FieldDescription,
+  FieldGroup,
+  FieldLabel,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Spinner } from "@/components/ui/spinner";
 import {
@@ -30,6 +36,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import type { Route } from "./+types/Admins";
+
+export { RouteError as ErrorBoundary };
+
+export async function clientLoader() {
+  return load(api.get<{ admins: Admin[] }>("/api/admin/admins"));
+}
 
 function NewAdminDialog({
   open,
@@ -143,12 +156,10 @@ function NewAdminDialog({
   );
 }
 
-export function AdminsPage() {
+export default function AdminsPage({ loaderData }: Route.ComponentProps) {
+  const { admins } = loaderData;
+  const revalidator = useRevalidator();
   const [createOpen, setCreateOpen] = useState(false);
-  const { data, loading, error, reload } = useApi(
-    () => api.get<{ admins: Admin[] }>("/api/admin/admins"),
-    [],
-  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -160,42 +171,37 @@ export function AdminsPage() {
         </Button>
       </div>
 
-      {loading && <CenteredSpinner />}
-      {error && <ErrorState message={error} onRetry={reload} />}
-
-      {data && (
-        <div className="rounded-xl border">
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead scope="col">Email</TableHead>
-                <TableHead scope="col">Status</TableHead>
-                <TableHead scope="col">Created</TableHead>
+      <div className="rounded-xl border">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              <TableHead scope="col">Email</TableHead>
+              <TableHead scope="col">Status</TableHead>
+              <TableHead scope="col">Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {admins.map((admin) => (
+              <TableRow key={admin.id}>
+                <TableCell className="font-medium" translate="no">
+                  {admin.email}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={admin.status} />
+                </TableCell>
+                <TableCell className="text-muted-foreground tabular-nums">
+                  {formatDate(admin.created_at)}
+                </TableCell>
               </TableRow>
-            </TableHeader>
-            <TableBody>
-              {data.admins.map((admin) => (
-                <TableRow key={admin.id}>
-                  <TableCell className="font-medium" translate="no">
-                    {admin.email}
-                  </TableCell>
-                  <TableCell>
-                    <StatusBadge status={admin.status} />
-                  </TableCell>
-                  <TableCell className="text-muted-foreground tabular-nums">
-                    {formatDate(admin.created_at)}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </div>
-      )}
+            ))}
+          </TableBody>
+        </Table>
+      </div>
 
       <NewAdminDialog
         open={createOpen}
         onOpenChange={setCreateOpen}
-        onCreated={reload}
+        onCreated={() => revalidator.revalidate()}
       />
     </div>
   );

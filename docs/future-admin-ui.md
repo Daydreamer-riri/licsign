@@ -1,11 +1,13 @@
 # Admin UI
 
-**Status: implemented.** The admin UI is a React + Vite + TypeScript SPA built
-with shadcn/ui + Tailwind CSS, served by Cloudflare Workers Static Assets from the
-same Worker deployment.
+**Status: implemented.** The admin UI is a React + TypeScript SPA built with
+React Router framework mode (SPA mode), shadcn/ui, and Tailwind CSS, served by
+Cloudflare Workers Static Assets from the same Worker deployment.
 
 The information architecture is product-scoped — see
-`docs/adr/0004-product-scoped-admin-ui-ia.md`.
+`docs/adr/0004-product-scoped-admin-ui-ia.md`. The framework-mode rendering and
+data-loading model is recorded in
+`docs/adr/0005-react-router-framework-mode-spa.md`.
 
 ## Pages
 
@@ -70,10 +72,13 @@ the same permissions within that issuer; role-based access control is deferred.
 ## Frontend project
 
 - Location: `admin/` (top-level, alongside `worker/` and `shared/`)
-- Stack: React 19 + Vite + TypeScript + shadcn/ui + Tailwind CSS
-- Shares types/schemas from `shared/`
-- Build output: `admin/dist/`
-- wrangler.jsonc assets config: `{ "directory": "../admin/dist" }`
+- Stack: React 19 + React Router framework mode (SPA, `ssr: false`) +
+  TypeScript + shadcn/ui + Tailwind CSS
+- Routes declared in `admin/src/routes.ts`; document shell in `admin/src/root.tsx`
+- Data pages load through `clientLoader`; framework config in
+  `admin/react-router.config.ts`
+- Build output: `admin/build/client/`
+- wrangler.jsonc assets config: `{ "directory": "../admin/build/client" }`
 
 ## Build and deploy
 
