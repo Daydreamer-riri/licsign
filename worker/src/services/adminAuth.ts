@@ -5,7 +5,8 @@ import * as sessionQueries from "../db/queries/sessions";
 import { nowIso } from "../utils/time";
 import { ApiError } from "../utils/http";
 
-const PBKDF2_ITERATIONS = 600_000;
+// Cloudflare Workers' Web Crypto caps PBKDF2 at 100k iterations; do not raise this.
+const PBKDF2_ITERATIONS = 100_000;
 const SALT_LENGTH = 16;
 const HASH_LENGTH = 32;
 const SESSION_TTL_MS = 7 * 24 * 60 * 60 * 1000;

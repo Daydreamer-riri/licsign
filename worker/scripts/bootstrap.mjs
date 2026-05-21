@@ -26,8 +26,10 @@ async function pbkdf2Hash(password) {
     false,
     ["deriveBits"]
   );
+  // Must match PBKDF2_ITERATIONS in worker/src/services/adminAuth.ts.
+  // Cloudflare Workers' Web Crypto caps PBKDF2 at 100k iterations.
   const bits = await webcrypto.subtle.deriveBits(
-    { name: "PBKDF2", salt, iterations: 600_000, hash: "SHA-256" },
+    { name: "PBKDF2", salt, iterations: 100_000, hash: "SHA-256" },
     keyMaterial,
     32 * 8
   );
