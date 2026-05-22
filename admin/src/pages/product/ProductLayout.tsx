@@ -1,3 +1,4 @@
+import { Suspense } from "react";
 import { Outlet, useRouteLoaderData } from "react-router";
 
 import { api } from "@/lib/api";
@@ -5,6 +6,7 @@ import { load } from "@/lib/load";
 import type { Product } from "@/lib/types";
 import { ProductTabs } from "@/components/ProductTabs";
 import { RouteError } from "@/components/RouteError";
+import { CenteredSpinner } from "@/components/states";
 import { StatusBadge } from "@/components/StatusBadge";
 import type { Route } from "./+types/ProductLayout";
 
@@ -50,7 +52,9 @@ export default function ProductLayout({ loaderData }: Route.ComponentProps) {
         </div>
         <ProductTabs productId={product.id} />
       </div>
-      <Outlet />
+      <Suspense fallback={<CenteredSpinner />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 }

@@ -1,11 +1,10 @@
-import { useState } from "react";
+import { use, useState } from "react";
 import type { FormEvent } from "react";
 import { useRevalidator } from "react-router";
 import { PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate } from "@/lib/format";
 import type { Admin } from "@/lib/types";
 import { RouteError } from "@/components/RouteError";
@@ -40,8 +39,8 @@ import type { Route } from "./+types/Admins";
 
 export { RouteError as ErrorBoundary };
 
-export async function clientLoader() {
-  return load(api.get<{ admins: Admin[] }>("/api/admin/admins"));
+export function clientLoader() {
+  return { data: api.get<{ admins: Admin[] }>("/api/admin/admins") };
 }
 
 function NewAdminDialog({
@@ -157,7 +156,7 @@ function NewAdminDialog({
 }
 
 export default function AdminsPage({ loaderData }: Route.ComponentProps) {
-  const { admins } = loaderData;
+  const { admins } = use(loaderData.data);
   const revalidator = useRevalidator();
   const [createOpen, setCreateOpen] = useState(false);
 

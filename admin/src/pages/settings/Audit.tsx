@@ -1,9 +1,8 @@
-import { Fragment, useState } from "react";
+import { Fragment, use, useState } from "react";
 import { Form, useSearchParams } from "react-router";
 import { ChevronRightIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDateTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { AuditLog } from "@/lib/types";
@@ -24,7 +23,7 @@ export { RouteError as ErrorBoundary };
 
 const PAGE_SIZE = 25;
 
-export async function clientLoader({ request }: Route.ClientLoaderArgs) {
+export function clientLoader({ request }: Route.ClientLoaderArgs) {
   const url = new URL(request.url);
   const action = url.searchParams.get("action") ?? "";
   const page = Math.max(1, Number(url.searchParams.get("page") ?? "1") || 1);
@@ -34,12 +33,13 @@ export async function clientLoader({ request }: Route.ClientLoaderArgs) {
   sp.set("take", String(PAGE_SIZE));
   sp.set("skip", String((page - 1) * PAGE_SIZE));
 
-  const data = await load(
-    api.get<{ audit_logs: AuditLog[]; total: number }>(
+  return {
+    dataPromise: api.get<{ audit_logs: AuditLog[]; total: number }>(
       `/api/admin/audit-logs?${sp.toString()}`,
     ),
-  );
-  return { ...data, action, page };
+    action,
+    page,
+  };
 }
 
 function formatDetails(json: string | null): string | null {
@@ -52,7 +52,8 @@ function formatDetails(json: string | null): string | null {
 }
 
 export default function AuditPage({ loaderData }: Route.ComponentProps) {
-  const { audit_logs, total, action, page } = loaderData;
+  const { dataPromise, action, page } = loaderData;
+  const { audit_logs, total } = use(dataPromise);
   const [params, setParams] = useSearchParams();
   const [expandedId, setExpandedId] = useState<string | null>(null);
 

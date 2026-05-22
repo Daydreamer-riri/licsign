@@ -1,6 +1,8 @@
+import { Suspense } from "react";
 import { Outlet } from "react-router";
 
 import { SettingsNav } from "@/components/SettingsNav";
+import { CenteredSpinner } from "@/components/states";
 
 export default function SettingsLayout() {
   return (
@@ -9,7 +11,9 @@ export default function SettingsLayout() {
         <h1 className="text-xl font-semibold tracking-tight">Settings</h1>
         <SettingsNav />
       </div>
-      <Outlet />
+      <Suspense fallback={<CenteredSpinner />}>
+        <Outlet />
+      </Suspense>
     </div>
   );
 }

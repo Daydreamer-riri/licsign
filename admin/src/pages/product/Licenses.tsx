@@ -1,8 +1,8 @@
+import { use } from "react";
 import { Form, Link, useSearchParams } from "react-router";
 import { KeyRoundIcon, SearchIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate } from "@/lib/format";
 import type { License } from "@/lib/types";
 import { RouteError } from "@/components/RouteError";
@@ -46,7 +46,7 @@ const STATUS_OPTIONS = [
   { value: "revoked", label: "Revoked" },
 ];
 
-export async function clientLoader({ params, request }: Route.ClientLoaderArgs) {
+export function clientLoader({ params, request }: Route.ClientLoaderArgs) {
   const url = new URL(request.url);
   const q = url.searchParams.get("q") ?? "";
   const status = url.searchParams.get("status") ?? "";
@@ -59,18 +59,21 @@ export async function clientLoader({ params, request }: Route.ClientLoaderArgs) 
   sp.set("take", String(PAGE_SIZE));
   sp.set("skip", String((page - 1) * PAGE_SIZE));
 
-  const data = await load(
-    api.get<{ licenses: License[]; count: number }>(
+  return {
+    dataPromise: api.get<{ licenses: License[]; count: number }>(
       `/api/admin/licenses?${sp.toString()}`,
     ),
-  );
-  return { ...data, q, status, page };
+    q,
+    status,
+    page,
+  };
 }
 
 export default function ProductLicensesPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { licenses, count, q, status, page } = loaderData;
+  const { dataPromise, q, status, page } = loaderData;
+  const { licenses, count } = use(dataPromise);
   const { product } = useProduct();
   const [params, setParams] = useSearchParams();
 

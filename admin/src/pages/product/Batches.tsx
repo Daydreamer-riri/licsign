@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { use, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { LayersIcon, PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate } from "@/lib/format";
 import type { Batch } from "@/lib/types";
 import { BatchFormDialog } from "@/components/BatchFormDialog";
@@ -30,17 +29,18 @@ import { useProduct } from "./ProductLayout";
 
 export { RouteError as ErrorBoundary };
 
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
-  const { batches } = await load(
-    api.get<{ batches: Batch[] }>("/api/admin/batches"),
-  );
-  return { batches: batches.filter((b) => b.product_id === params.id) };
+export function clientLoader({ params }: Route.ClientLoaderArgs) {
+  return {
+    result: api.get<{ batches: Batch[] }>("/api/admin/batches"),
+    productId: params.id,
+  };
 }
 
 export default function ProductBatchesPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { batches } = loaderData;
+  const { batches: allBatches } = use(loaderData.result);
+  const batches = allBatches.filter((b) => b.product_id === loaderData.productId);
   const { product } = useProduct();
   const navigate = useNavigate();
   const [createOpen, setCreateOpen] = useState(false);

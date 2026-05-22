@@ -1,9 +1,8 @@
-import { useState } from "react";
+import { use, useState } from "react";
 import { Link, useNavigate } from "react-router";
 import { PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { ProductOverview } from "@/lib/types";
 import { BatchFormDialog } from "@/components/BatchFormDialog";
@@ -29,11 +28,10 @@ import type { Route } from "./+types/Overview";
 
 export { RouteError as ErrorBoundary };
 
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
-  const overview = await load(
-    api.get<ProductOverview>(`/api/admin/products/${params.id}/overview`),
-  );
-  return { overview };
+export function clientLoader({ params }: Route.ClientLoaderArgs) {
+  return {
+    overview: api.get<ProductOverview>(`/api/admin/products/${params.id}/overview`),
+  };
 }
 
 function DetailRow({ label, value }: { label: string; value: React.ReactNode }) {
@@ -48,7 +46,7 @@ function DetailRow({ label, value }: { label: string; value: React.ReactNode }) 
 export default function ProductOverviewPage({
   loaderData,
 }: Route.ComponentProps) {
-  const { overview } = loaderData;
+  const overview = use(loaderData.overview);
   const { product } = overview;
   const counts = overview.license_counts;
   const navigate = useNavigate();

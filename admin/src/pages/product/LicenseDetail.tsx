@@ -1,10 +1,9 @@
-import { useState } from "react";
+import { use, useState } from "react";
 import { Link, useRevalidator } from "react-router";
 import { ArrowLeftIcon, TriangleAlertIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { Activation, License } from "@/lib/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -28,12 +27,12 @@ import { useProduct } from "./ProductLayout";
 
 export { RouteError as ErrorBoundary };
 
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
-  return load(
-    api.get<{ license: License; activations: Activation[] }>(
+export function clientLoader({ params }: Route.ClientLoaderArgs) {
+  return {
+    data: api.get<{ license: License; activations: Activation[] }>(
       `/api/admin/licenses/${params.licenseId}`,
     ),
-  );
+  };
 }
 
 type PendingAction = "disable" | "enable" | "revoke" | null;
@@ -81,7 +80,7 @@ function DetailRow({
 }
 
 export default function LicenseDetailPage({ loaderData }: Route.ComponentProps) {
-  const { license, activations } = loaderData;
+  const { license, activations } = use(loaderData.data);
   const { product } = useProduct();
   const revalidator = useRevalidator();
   const [pending, setPending] = useState<PendingAction>(null);

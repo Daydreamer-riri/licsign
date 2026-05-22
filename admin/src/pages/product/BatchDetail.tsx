@@ -1,9 +1,9 @@
+import { use } from "react";
 import { Link } from "react-router";
 import { ArrowLeftIcon, DownloadIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { api } from "@/lib/api";
-import { load } from "@/lib/load";
 import { formatDate } from "@/lib/format";
 import type { Batch, BatchLicense } from "@/lib/types";
 import { RouteError } from "@/components/RouteError";
@@ -28,12 +28,12 @@ import { useProduct } from "./ProductLayout";
 
 export { RouteError as ErrorBoundary };
 
-export async function clientLoader({ params }: Route.ClientLoaderArgs) {
-  return load(
-    api.get<{ batch: Batch; licenses: BatchLicense[] }>(
+export function clientLoader({ params }: Route.ClientLoaderArgs) {
+  return {
+    data: api.get<{ batch: Batch; licenses: BatchLicense[] }>(
       `/api/admin/batches/${params.batchId}`,
     ),
-  );
+  };
 }
 
 function downloadCodes(batch: Batch, licenses: BatchLicense[]) {
@@ -67,7 +67,7 @@ function DetailRow({
 }
 
 export default function BatchDetailPage({ loaderData }: Route.ComponentProps) {
-  const { batch, licenses } = loaderData;
+  const { batch, licenses } = use(loaderData.data);
   const { product } = useProduct();
 
   return (
