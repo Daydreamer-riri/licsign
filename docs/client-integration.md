@@ -63,6 +63,11 @@ of these can be discovered at runtime — they are integration-time inputs.
 | **Expected `issuer`** | The exact string the client must find in every token's `issuer` field. |
 | **Trial availability** | Whether the product has a trial window, so you know whether to implement the trial path. |
 
+The operator can export all of the above at once: in the Admin UI, open the
+product's **Overview** tab and use the **Client Config** button to copy a JSON
+bundle of these values. (Internally it is `GET /api/admin/products/:id/client-config`.)
+The bundle carries only the current signing key — see §3.4 for key rotation.
+
 The client endpoints (`/api/client/*`) are **unauthenticated** — the Activation
 Code itself is the credential. Do not send an `Authorization` header.
 

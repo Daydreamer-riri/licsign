@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import type { Env } from "../src/types";
 import { decodeBase64UrlToBytes, decodeBase64UrlToString } from "../src/utils/base64url";
-import { signJws } from "../src/crypto/signing";
+import { derivePublicJwk, signJws } from "../src/crypto/signing";
 
 describe("signJws", () => {
   it("creates an ES256 JWS that verifies with the public key", async () => {
@@ -35,5 +35,35 @@ describe("signJws", () => {
       new TextEncoder().encode(`${headerSegment}.${payloadSegment}`)
     );
     expect(valid).toBe(true);
+  });
+});
+
+describe("derivePublicJwk", () => {
+  it("returns the public point and never leaks the private scalar d", async () => {
+    const keyPair = await crypto.subtle.generateKey(
+      { name: "ECDSA", namedCurve: "P-256" },
+      true,
+      ["sign", "verify"]
+    );
+    const privateJwk = await crypto.subtle.exportKey("jwk", keyPair.privateKey);
+    expect(privateJwk.d).toBeDefined();
+
+    const env = { SIGNING_PRIVATE_JWK: JSON.stringify(privateJwk) } as Env;
+    const publicJwk = derivePublicJwk(env);
+
+    expect(publicJwk).toEqual({
+      kty: "EC",
+      crv: "P-256",
+      x: privateJwk.x,
+      y: privateJwk.y
+    });
+    expect(publicJwk).not.toHaveProperty("d");
+  });
+
+  it("rejects a private JWK that is not a P-256 EC key", () => {
+    const env = {
+      SIGNING_PRIVATE_JWK: JSON.stringify({ kty: "RSA", n: "x", e: "AQAB" })
+    } as Env;
+    expect(() => derivePublicJwk(env)).toThrow();
   });
 });

@@ -175,6 +175,7 @@ client must use the activation-code flow.
 - `GET /api/admin/products`
 - `GET /api/admin/products/:id`
 - `GET /api/admin/products/:id/overview`
+- `GET /api/admin/products/:id/client-config`
 - `POST /api/admin/products`
 - `PATCH /api/admin/products/:id`
 
@@ -182,6 +183,31 @@ client must use the activation-code flow.
 `GET /api/admin/products/:id/overview` returns an issuer-scoped summary —
 license counts by status, batch count, and recent paid activations for the
 product. Both are read-only and back the Admin UI product cards and Overview tab.
+
+`GET /api/admin/products/:id/client-config` returns every integration-time input
+a client integrator needs for the product (see `docs/client-integration.md` §2),
+ready to hand off as JSON:
+
+```json
+{
+  "base_url": "https://licsign.example.com",
+  "product_code": "flow",
+  "expected_issuer": "licsign",
+  "trial_enabled": true,
+  "signing_keys": [
+    {
+      "kid": "kid_xxx",
+      "alg": "ES256",
+      "public_jwk": { "kty": "EC", "crv": "P-256", "x": "...", "y": "..." }
+    }
+  ]
+}
+```
+
+`base_url` is the request origin. `public_jwk` is derived from the signing key —
+it is the public key only and never carries the private scalar `d`. `signing_keys`
+contains **only the current signing key**; after a key rotation, retired keys must
+be added by hand. It backs the Admin UI "Client Config" button on the Overview tab.
 
 Create product body:
 

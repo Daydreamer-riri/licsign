@@ -119,6 +119,29 @@ export interface ProductOverview {
   recent_activations: RecentActivation[];
 }
 
+/** An ES256 (P-256) public key in JWK form. */
+export interface PublicJwk {
+  kty: "EC";
+  crv: "P-256";
+  x: string;
+  y: string;
+}
+
+export interface SigningKeyEntry {
+  kid: string;
+  alg: "ES256";
+  public_jwk: PublicJwk;
+}
+
+/** Integration-time inputs a client integrator needs for one product. */
+export interface ClientIntegrationConfig {
+  base_url: string;
+  product_code: string;
+  expected_issuer: string;
+  trial_enabled: boolean;
+  signing_keys: SigningKeyEntry[];
+}
+
 export interface Admin {
   id: string;
   issuer_id: string;

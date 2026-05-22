@@ -14,6 +14,7 @@ import {
 import { createAdmin, listAdmins } from "../services/adminAccounts";
 import { getDashboardStats } from "../services/dashboard";
 import { getProductOverview } from "../services/productOverview";
+import { buildClientConfig } from "../services/clientConfig";
 import { queryAuditLogs } from "../services/auditQuery";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: { admin: AdminContext } }>();
@@ -42,6 +43,19 @@ adminRoutes.patch("/products/:id", async (c) => {
 adminRoutes.get("/products/:id/overview", async (c) => {
   const admin = c.get("admin");
   return c.json(await getProductOverview(c.env.DB, admin.issuerId, c.req.param("id")));
+});
+
+adminRoutes.get("/products/:id/client-config", async (c) => {
+  const admin = c.get("admin");
+  return c.json(
+    await buildClientConfig(
+      c.env.DB,
+      c.env,
+      admin.issuerId,
+      c.req.param("id"),
+      new URL(c.req.url).origin
+    )
+  );
 });
 
 adminRoutes.get("/products/:id", async (c) => {

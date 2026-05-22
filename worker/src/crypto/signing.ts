@@ -1,4 +1,4 @@
-import type { OfflineLicensePayload } from "../../../shared/src/types";
+import type { OfflineLicensePayload, PublicJwk } from "../../../shared/src/types";
 import type { Env } from "../types";
 import { encodeBase64Url } from "../utils/base64url";
 
@@ -25,6 +25,26 @@ async function importPrivateKey(env: Env): Promise<CryptoKey> {
     false,
     ["sign"]
   );
+}
+
+/**
+ * Derives the ES256 public JWK from the configured private signing key by
+ * dropping the private scalar `d`. The public point (`x`, `y`) already lives in
+ * the private JWK, so no separate public-key secret is needed.
+ */
+export function derivePublicJwk(env: Env): PublicJwk {
+  let jwk: JsonWebKey;
+  try {
+    jwk = JSON.parse(env.SIGNING_PRIVATE_JWK) as JsonWebKey;
+  } catch {
+    throw new Error("SIGNING_PRIVATE_JWK must be a JSON Web Key");
+  }
+
+  if (jwk.kty !== "EC" || jwk.crv !== "P-256" || !jwk.x || !jwk.y) {
+    throw new Error("SIGNING_PRIVATE_JWK must be a P-256 EC key");
+  }
+
+  return { kty: "EC", crv: "P-256", x: jwk.x, y: jwk.y };
 }
 
 export async function signJws(payload: unknown, env: Env): Promise<string> {

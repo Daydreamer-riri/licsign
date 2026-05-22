@@ -53,3 +53,30 @@ export interface ApiErrorResponse<TCode extends string = string> {
   message: string;
   details?: unknown;
 }
+
+/** An ES256 (P-256) public key in JWK form, used to verify Offline License tokens. */
+export interface PublicJwk {
+  kty: "EC";
+  crv: "P-256";
+  x: string;
+  y: string;
+}
+
+/** One signing key a client must embed to verify tokens carrying its `kid`. */
+export interface SigningKeyEntry {
+  kid: string;
+  alg: "ES256";
+  public_jwk: PublicJwk;
+}
+
+/**
+ * Every integration-time input a client integrator needs to activate against and
+ * locally verify one product. See docs/client-integration.md §2.
+ */
+export interface ClientIntegrationConfig {
+  base_url: string;
+  product_code: string;
+  expected_issuer: string;
+  trial_enabled: boolean;
+  signing_keys: SigningKeyEntry[];
+}

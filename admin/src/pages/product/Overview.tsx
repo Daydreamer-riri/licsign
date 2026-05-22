@@ -1,11 +1,12 @@
 import { use, useState } from "react";
 import { Link, useNavigate } from "react-router";
-import { PlusIcon } from "lucide-react";
+import { KeyRoundIcon, PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/format";
 import type { ProductOverview } from "@/lib/types";
 import { BatchFormDialog } from "@/components/BatchFormDialog";
+import { ClientConfigDialog } from "@/components/ClientConfigDialog";
 import { RouteError } from "@/components/RouteError";
 import { StatTile } from "@/components/StatTile";
 import { Button } from "@/components/ui/button";
@@ -51,15 +52,26 @@ export default function ProductOverviewPage({
   const counts = overview.license_counts;
   const navigate = useNavigate();
   const [batchOpen, setBatchOpen] = useState(false);
+  const [configOpen, setConfigOpen] = useState(false);
 
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between gap-4">
         <h2 className="text-sm font-medium text-muted-foreground">Overview</h2>
-        <Button size="sm" onClick={() => setBatchOpen(true)}>
-          <PlusIcon data-icon="inline-start" />
-          New Batch
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setConfigOpen(true)}
+          >
+            <KeyRoundIcon data-icon="inline-start" />
+            Client Config
+          </Button>
+          <Button size="sm" onClick={() => setBatchOpen(true)}>
+            <PlusIcon data-icon="inline-start" />
+            New Batch
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
@@ -162,6 +174,12 @@ export default function ProductOverviewPage({
         onCreated={(batchId) =>
           navigate(`/products/${product.id}/batches/${batchId}`)
         }
+      />
+
+      <ClientConfigDialog
+        open={configOpen}
+        onOpenChange={setConfigOpen}
+        productId={product.id}
       />
     </div>
   );
