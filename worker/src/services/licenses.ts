@@ -115,7 +115,9 @@ export async function revokeLicense(
 
 export async function exportLicensesCsv(db: D1Database, issuerId: string, query: Record<string, string>): Promise<string> {
   const { licenses } = await searchLicenses(db, issuerId, { ...query, take: "200", skip: "0" });
-  const rows = ["id,product_code,activation_code,status,max_devices,expires_at,created_at,activated_at"];
+  const rows = [
+    "id,product_code,activation_code,status,max_devices,expires_at,validity_duration_seconds,created_at,activated_at"
+  ];
   for (const row of licenses as Array<Record<string, unknown>>) {
     rows.push(
       [
@@ -125,6 +127,7 @@ export async function exportLicensesCsv(db: D1Database, issuerId: string, query:
         row.status,
         row.max_devices,
         row.expires_at,
+        row.validity_duration_seconds,
         row.created_at,
         row.activated_at
       ]

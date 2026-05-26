@@ -12,6 +12,7 @@ export async function insertBatchWithLicenses(
     quantity: number;
     maxDevices: number;
     expiresAt: string | null;
+    validityDurationSeconds: number | null;
     notes: string | null;
     apiKeyId: string | null;
     adminId: string | null;
@@ -23,9 +24,9 @@ export async function insertBatchWithLicenses(
     db
       .prepare(
         `INSERT INTO license_batches
-          (id, issuer_id, product_id, batch_name, code_prefix, quantity, max_devices, expires_at, notes,
-           created_by_api_key_id, created_by_admin_id, created_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+          (id, issuer_id, product_id, batch_name, code_prefix, quantity, max_devices, expires_at,
+           validity_duration_seconds, notes, created_by_api_key_id, created_by_admin_id, created_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         batch.id,
@@ -36,6 +37,7 @@ export async function insertBatchWithLicenses(
         batch.quantity,
         batch.maxDevices,
         batch.expiresAt,
+        batch.validityDurationSeconds,
         batch.notes,
         batch.apiKeyId,
         batch.adminId,
@@ -48,8 +50,9 @@ export async function insertBatchWithLicenses(
       db
         .prepare(
           `INSERT INTO licenses
-            (id, issuer_id, product_id, batch_id, activation_code, status, max_devices, expires_at, created_at, updated_at)
-           VALUES (?, ?, ?, ?, ?, 'available', ?, ?, ?, ?)`,
+            (id, issuer_id, product_id, batch_id, activation_code, status, max_devices, expires_at,
+             validity_duration_seconds, created_at, updated_at)
+           VALUES (?, ?, ?, ?, ?, 'available', ?, ?, ?, ?, ?)`,
         )
         .bind(
           createId("lic"),
@@ -59,6 +62,7 @@ export async function insertBatchWithLicenses(
           code,
           batch.maxDevices,
           batch.expiresAt,
+          batch.validityDurationSeconds,
           batch.now,
           batch.now,
         ),
@@ -112,7 +116,8 @@ export async function listLicensesByBatch(
   return all(
     db
       .prepare(
-        `SELECT id, activation_code, status, max_devices, expires_at, activated_at, created_at
+        `SELECT id, activation_code, status, max_devices, expires_at, validity_duration_seconds,
+                activated_at, created_at
          FROM licenses
          WHERE batch_id = ? AND issuer_id = ?
          ORDER BY created_at ASC`,

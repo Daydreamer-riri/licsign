@@ -64,6 +64,7 @@ class FakeStatement {
         ,
         ,
         ,
+        ,
         createdByApiKeyId,
         createdByAdminId
       ] = this.args as [
@@ -75,6 +76,7 @@ class FakeStatement {
         number,
         number,
         string | null,
+        number | null,
         string | null,
         string | null,
         string | null,

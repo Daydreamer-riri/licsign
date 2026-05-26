@@ -14,6 +14,9 @@ export const productCodeSchema = z
 export const TRIAL_TOKEN_TTL_MIN_SECONDS = 60;
 export const TRIAL_TOKEN_TTL_MAX_SECONDS = 60 * 60 * 24 * 90;
 
+export const VALIDITY_DURATION_MIN_SECONDS = 60 * 60 * 24;
+export const VALIDITY_DURATION_MAX_SECONDS = 60 * 60 * 24 * 365 * 100;
+
 const trialFieldsSchema = {
   trial_enabled: z.boolean().optional(),
   trial_start_at: z.string().datetime().nullable().optional(),
@@ -44,21 +47,37 @@ export const updateProductSchema = createProductSchema
     message: "at least one field is required"
   });
 
-export const createBatchSchema = z.object({
-  product_id: z.string().min(1),
-  batch_name: z.string().min(1).max(160),
-  quantity: z.number().int().min(1).max(5000),
-  max_devices: z.number().int().min(1).max(100).optional(),
-  expires_at: z.string().datetime().nullable().optional(),
-  code_prefix: z
-    .string()
-    .min(1)
-    .max(24)
-    .regex(/^[A-Z0-9][A-Z0-9_-]*$/)
-    .nullable()
-    .optional(),
-  notes: z.string().max(5000).nullable().optional()
-});
+export const createBatchSchema = z
+  .object({
+    product_id: z.string().min(1),
+    batch_name: z.string().min(1).max(160),
+    quantity: z.number().int().min(1).max(5000),
+    max_devices: z.number().int().min(1).max(100).optional(),
+    expires_at: z.string().datetime().nullable().optional(),
+    validity_duration_seconds: z
+      .number()
+      .int()
+      .min(VALIDITY_DURATION_MIN_SECONDS)
+      .max(VALIDITY_DURATION_MAX_SECONDS)
+      .nullable()
+      .optional(),
+    code_prefix: z
+      .string()
+      .min(1)
+      .max(24)
+      .regex(/^[A-Z0-9][A-Z0-9_-]*$/)
+      .nullable()
+      .optional(),
+    notes: z.string().max(5000).nullable().optional()
+  })
+  .refine(
+    (value) => !(value.expires_at != null && value.validity_duration_seconds != null),
+    {
+      message:
+        "expires_at and validity_duration_seconds are mutually exclusive; choose Absolute Expiry or Activation-Relative Validity",
+      path: ["validity_duration_seconds"]
+    }
+  );
 
 export const activateSchema = z.object({
   product_code: productCodeSchema,

@@ -158,6 +158,7 @@ function makeLicense(overrides: Partial<LicenseRow> = {}): LicenseRow {
     issued_to: null,
     metadata_json: null,
     expires_at: null,
+    validity_duration_seconds: null,
     activated_at: now,
     revoked_at: null,
     revoked_reason: null,
@@ -409,6 +410,29 @@ describe("restoreLicense", () => {
     const env = await makeEnv(db);
 
     await expect(restoreLicense(env, { machine_hash: MACHINE_A })).rejects.toBeDefined();
+  });
+
+  it("returns the materialized expires_at for an ARV license without re-anchoring", async () => {
+    // ADR-0006: once expires_at is materialized at first activation, every
+    // subsequent signing path (including restore) must serve that value
+    // verbatim — restore never re-anchors the Activation-Relative Validity
+    // window, even though validity_duration_seconds is still present on the row.
+    const past = new Date(Date.now() - 60_000).toISOString();
+    const materialized = new Date(Date.now() + 86400 * 1000).toISOString();
+    db.products.push(makeProduct());
+    db.licenses.push(
+      makeLicense({
+        validity_duration_seconds: 86400,
+        activated_at: past,
+        expires_at: materialized,
+      }),
+    );
+    db.activations.push(makeActivation({ activated_at: past, last_seen_at: past }));
+    const env = await makeEnv(db);
+
+    const result = await restoreLicense(env, BASE_INPUT);
+
+    expect(result.license.expires_at).toBe(materialized);
   });
 
   it("does not match a device's activation that belongs to a different product", async () => {

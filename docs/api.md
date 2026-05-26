@@ -246,14 +246,22 @@ Create batch body:
   "quantity": 100,
   "max_devices": 1,
   "expires_at": null,
+  "validity_duration_seconds": null,
   "code_prefix": "TV",
   "notes": "optional"
 }
 ```
 
-The response includes generated `activation_codes` and a raw `csv` string.
-API Key-created batches set `created_by_api_key_id`; browser Admin-created
-batches set `created_by_admin_id`.
+`expires_at` and `validity_duration_seconds` are mutually exclusive — at most one
+may be non-null. `expires_at` is Absolute Expiry (cutoff fixed at batch creation).
+`validity_duration_seconds` is Activation-Relative Validity (the License is valid
+for that many seconds, counted from first activation); accepted range is one day
+(86400) to 100 years (3,153,600,000). Both null = perpetual License. Sending both
+non-null returns `400 VALIDITY_CONFLICT`.
+
+The response includes generated `activation_codes`, a raw `csv` string, and the
+echoed `expires_at` / `validity_duration_seconds`. API Key-created batches set
+`created_by_api_key_id`; browser Admin-created batches set `created_by_admin_id`.
 
 ### Licenses
 
@@ -263,6 +271,13 @@ batches set `created_by_admin_id`.
 - `POST /api/admin/licenses/:id/enable`
 - `POST /api/admin/licenses/:id/revoke`
 - `GET /api/admin/licenses/export.csv`
+
+License JSON responses (`GET /api/admin/licenses`, `GET /api/admin/licenses/:id`)
+include `validity_duration_seconds` alongside `expires_at`. For codes that use
+Activation-Relative Validity, `expires_at` is `null` until first activation and
+then the materialized cutoff (`activated_at + validity_duration_seconds`) — see
+ADR-0006. The CSV export includes a `validity_duration_seconds` column between
+`expires_at` and `created_at`.
 
 Search query parameters:
 

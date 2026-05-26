@@ -122,6 +122,28 @@ flat global lists. See `docs/adr/0004-product-scoped-admin-ui-ia.md` for the
 information architecture and `docs/adr/0005-react-router-framework-mode-spa.md`
 for the rendering and data-loading model.
 
+## Activation-Relative Validity
+
+In addition to **Absolute Expiry** (`expires_at` fixed at batch creation),
+batches can declare a **Duration** via `validity_duration_seconds` (1 day to
+100 years). Each License in such a batch is valid for that many seconds counted
+from its first activation. The two models are mutually exclusive per batch.
+
+On the first activation that transitions a License from `available` to
+`activated`, the Worker computes `activated_at + validity_duration_seconds` and
+writes it into `licenses.expires_at` atomically with `activated_at` and `status`.
+From then on every signing path treats the License like any Absolute Expiry
+License — there is no extra branch in `issuance`, `restore`, or the
+compatibility verifier. The timer never re-anchors: re-activation under
+`max_devices > 1`, disable→enable, deactivate-all→reactivate, and restore all
+read the materialized `expires_at` unchanged. See ADR-0006 for the storage
+decision and ADR-0007 for why the JWS payload is not extended with Duration
+metadata.
+
+Distinct from trial token TTL: trial TTL is a per-token, per-device window
+re-issued on every trial call. Activation-Relative Validity is a per-License,
+one-shot Duration anchored to that License's first activation.
+
 ## Revocation Tradeoff
 
 Revocation affects future online operations: activation, refresh, and the compatibility

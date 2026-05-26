@@ -60,6 +60,7 @@ export interface LicenseRow {
   issued_to: string | null;
   metadata_json: string | null;
   expires_at: string | null;
+  validity_duration_seconds: number | null;
   activated_at: string | null;
   revoked_at: string | null;
   revoked_reason: string | null;

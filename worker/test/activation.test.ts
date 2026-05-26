@@ -130,12 +130,15 @@ class FakeStatement {
       return { success: true } as never;
     }
 
-    if (sql.startsWith("UPDATE licenses SET status")) {
-      const [now, updatedAt, id] = this.args as [string, string, string];
+    if (sql.startsWith("UPDATE licenses") && sql.includes("SET status = 'activated'")) {
+      const [now, computedExpiresAt, updatedAt, id] = this.args as [
+        string, string | null, string, string
+      ];
       const lic = this.db.licenses.find((l) => l.id === id);
       if (lic) {
         lic.status = "activated";
         if (!lic.activated_at) lic.activated_at = now;
+        if (!lic.expires_at) lic.expires_at = computedExpiresAt;
         lic.updated_at = updatedAt;
       }
       return { success: true } as never;
@@ -212,6 +215,7 @@ function makeLicense(overrides: Partial<LicenseRow> = {}): LicenseRow {
     issued_to: null,
     metadata_json: null,
     expires_at: null,
+    validity_duration_seconds: null,
     activated_at: null,
     revoked_at: null,
     revoked_reason: null,
@@ -476,6 +480,107 @@ describe("activate", () => {
     const details = JSON.parse(entry!.details_json!);
     expect(details.product_code).toBe("tv-app");
     expect(details.machine_hash).toBe(MACHINE_A);
+  });
+
+  it("materializes expires_at on first activation when validity_duration_seconds is set", async () => {
+    db.products.push(makeProduct());
+    db.licenses.push(makeLicense({ validity_duration_seconds: 86400 }));
+    const env = await makeEnv(db);
+
+    const before = Date.now();
+    const result = await activate(env, BASE_INPUT);
+    const after = Date.now();
+
+    const lic = db.licenses[0]!;
+    expect(lic.status).toBe("activated");
+    expect(lic.activated_at).not.toBeNull();
+    expect(lic.expires_at).not.toBeNull();
+
+    const expiresMs = Date.parse(lic.expires_at!);
+    expect(expiresMs - before).toBeGreaterThanOrEqual(86400 * 1000);
+    expect(expiresMs - after).toBeLessThanOrEqual(86400 * 1000);
+
+    expect(result.license.expires_at).toBe(lic.expires_at);
+
+    const audit = db.auditLogs.find((a) => a.action === "client.activate");
+    const details = JSON.parse(audit!.details_json!);
+    expect(details.validity_duration_seconds).toBe(86400);
+    expect(details.computed_expires_at).toBe(lic.expires_at);
+  });
+
+  it("does not re-anchor expires_at on subsequent activations under max_devices>1", async () => {
+    db.products.push(makeProduct());
+    const initialExpiry = new Date(Date.now() + 86400 * 1000).toISOString();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    db.licenses.push(
+      makeLicense({
+        status: "activated",
+        max_devices: 3,
+        validity_duration_seconds: 86400,
+        activated_at: past,
+        expires_at: initialExpiry,
+      })
+    );
+    const env = await makeEnv(db);
+
+    const result = await activate(env, { ...BASE_INPUT, machine_hash: MACHINE_B });
+
+    expect(db.licenses[0]!.expires_at).toBe(initialExpiry);
+    expect(db.licenses[0]!.activated_at).toBe(past);
+    expect(result.license.expires_at).toBe(initialExpiry);
+
+    const audit = db.auditLogs.find(
+      (a) => a.action === "client.activate" && a.details_json?.includes(MACHINE_B)
+    );
+    const details = JSON.parse(audit!.details_json!);
+    expect(details.validity_duration_seconds).toBeUndefined();
+    expect(details.computed_expires_at).toBeUndefined();
+  });
+
+  it("does not re-anchor expires_at when status was reset to 'available' by an enable cycle", async () => {
+    // services/licenses.ts::setLicenseDisabled resets status back to 'available'
+    // when all devices have been deactivated. For an ARV license that already
+    // materialized expires_at, the next activate still hits the
+    // isFirstActivation branch (status === 'available'), but must NOT re-anchor.
+    db.products.push(makeProduct());
+    const originalExpiry = new Date(Date.now() + 86400 * 1000).toISOString();
+    const past = new Date(Date.now() - 60_000).toISOString();
+    db.licenses.push(
+      makeLicense({
+        status: "available",
+        validity_duration_seconds: 86400,
+        activated_at: past,
+        expires_at: originalExpiry,
+      })
+    );
+    const env = await makeEnv(db);
+
+    const result = await activate(env, BASE_INPUT);
+
+    expect(db.licenses[0]!.expires_at).toBe(originalExpiry);
+    expect(db.licenses[0]!.activated_at).toBe(past);
+    expect(db.licenses[0]!.status).toBe("activated");
+    expect(result.license.expires_at).toBe(originalExpiry);
+
+    const audit = db.auditLogs.find((a) => a.action === "client.activate");
+    const details = JSON.parse(audit!.details_json!);
+    expect(details.computed_expires_at).toBeUndefined();
+    expect(details.validity_duration_seconds).toBeUndefined();
+  });
+
+  it("does not materialize expires_at when neither expiry model is set", async () => {
+    db.products.push(makeProduct());
+    db.licenses.push(makeLicense());
+    const env = await makeEnv(db);
+
+    const result = await activate(env, BASE_INPUT);
+
+    expect(db.licenses[0]!.expires_at).toBeNull();
+    expect(result.license.expires_at).toBeNull();
+
+    const audit = db.auditLogs.find((a) => a.action === "client.activate");
+    const details = JSON.parse(audit!.details_json!);
+    expect(details.validity_duration_seconds).toBeUndefined();
   });
 });
 

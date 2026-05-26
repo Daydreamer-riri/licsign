@@ -1,9 +1,9 @@
 # Schema
 
 The canonical source of truth is `worker/migrations/0001_initial.sql` (plus later
-numbered migration files such as `0002_product_trial.sql`). This document
-provides a readable reference with column details, constraints, relationships,
-and index rationale.
+numbered migration files: `0002_product_trial.sql`, `0003_admin_auth.sql`,
+`0004_license_validity_duration.sql`). This document provides a readable
+reference with column details, constraints, relationships, and index rationale.
 
 ## ER Diagram
 
@@ -145,7 +145,8 @@ Groups of activation codes generated in bulk.
 | code_prefix | TEXT | nullable | Prefix for generated activation codes (e.g. "TV") |
 | quantity | INTEGER | NOT NULL | Number of codes generated |
 | max_devices | INTEGER | NOT NULL | Device limit per license in this batch |
-| expires_at | TEXT | nullable | License expiration; null = no expiration |
+| expires_at | TEXT | nullable | Absolute Expiry; null = use Activation-Relative Validity or no expiration |
+| validity_duration_seconds | INTEGER | nullable, CHECK [86400, 3153600000], CHECK mutually exclusive with `expires_at` | Activation-Relative Validity duration in seconds; copied into each License at batch creation |
 | notes | TEXT | nullable | Free-form notes |
 | created_by_api_key_id | TEXT | FK → api_keys(id) ON DELETE SET NULL | API Key that created the batch; null when a browser Admin created it |
 | created_by_admin_id | TEXT | FK → admins(id) ON DELETE SET NULL | Admin that created the batch; null when an API Key created it |
@@ -172,8 +173,9 @@ Individual activation codes and their lifecycle state.
 | max_devices | INTEGER | NOT NULL | Concurrent device limit |
 | issued_to | TEXT | nullable | Optional recipient identifier |
 | metadata_json | TEXT | nullable | Arbitrary JSON metadata |
-| expires_at | TEXT | nullable | Hard expiration; null = no expiration |
-| activated_at | TEXT | nullable | First activation timestamp |
+| expires_at | TEXT | nullable | Effective expiration. For Absolute Expiry codes: Admin input. For Activation-Relative Validity codes: NULL until first activation, then materialized to `activated_at + validity_duration_seconds`. See ADR-0006. |
+| validity_duration_seconds | INTEGER | nullable, CHECK [86400, 3153600000], CHECK with `expires_at` (see below) | Activation-Relative Validity duration in seconds; copied from `license_batches` at batch creation |
+| activated_at | TEXT | nullable | First activation timestamp; once set, never cleared. Anchors Activation-Relative Validity |
 | revoked_at | TEXT | nullable | Revocation timestamp |
 | revoked_reason | TEXT | nullable | Free-form reason for revocation |
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
@@ -186,6 +188,18 @@ Indexes:
 - `idx_licenses_batch_id` — list by batch
 - `idx_licenses_status` — filter by lifecycle state
 - `idx_licenses_activation_code` — lookup during client activation
+
+Validity model invariant (CHECK):
+
+- Before first activation (`activated_at IS NULL`): `expires_at` and
+  `validity_duration_seconds` are mutually exclusive. A License chooses Absolute
+  Expiry, Activation-Relative Validity, or neither (perpetual).
+- After first activation: both columns may be non-null because `expires_at` has
+  been materialized from `activated_at + validity_duration_seconds`.
+
+`license_batches` enforces strict mutual exclusion of the two fields (no
+`activated_at` exception). See `worker/migrations/0004_license_validity_duration.sql`
+and ADR-0006.
 
 ## activations
 
@@ -279,5 +293,6 @@ Indexes:
 | platform | activations | platform |
 | max_devices | licenses / license_batches | max_devices |
 | expires_at | licenses / license_batches | expires_at |
+| validity_duration_seconds | licenses / license_batches | validity_duration_seconds |
 | userId (LicenseGate) | issuers | public_user_id |
 | licenseKey (LicenseGate) | licenses | activation_code |

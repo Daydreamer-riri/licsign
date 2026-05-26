@@ -124,6 +124,21 @@ Add email/password Admin authentication with PBKDF2-SHA256 password hashes and D
 - Cross-origin browser Admin UI deployments using session cookies.
 - Admin UI theming beyond a usable shadcn/ui + Tailwind baseline.
 
+## Display convention: License validity
+
+License rows expose `expires_at` and `validity_duration_seconds`. The Admin UI
+renders a single "Validity" cell using a 4-case switch (see `docs/design.md` —
+Activation-Relative Validity and ADR-0006):
+
+- `validity_duration_seconds` set, `activated_at` null → "Valid for N days from
+  activation"
+- `validity_duration_seconds` set, `activated_at` set → "Expires YYYY-MM-DD
+  (activation-relative, N days)"
+- `expires_at` set, `validity_duration_seconds` null → "Expires YYYY-MM-DD"
+- both null → "Perpetual"
+
+The derivation lives on the frontend; the API only returns raw columns.
+
 ## Further Notes
 
 - The glossary distinguishes Admin from API Key; implementation, UI copy, docs, and tests should keep that language.

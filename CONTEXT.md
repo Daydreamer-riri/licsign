@@ -30,6 +30,23 @@ license redeemed from an Activation Code, or a trial issued directly by the tria
 endpoint without one.
 _Avoid_: Activation code
 
+**Absolute Expiry**:
+A license expiration model where the cutoff is a fixed wall-clock timestamp
+chosen when the batch is created (e.g. "expires 2026-12-31"). The cutoff is
+independent of when the **Activation Code** is redeemed.
+_Avoid_: Hard expiry, deadline
+
+**Activation-Relative Validity**:
+A license expiration model where the license is valid for a fixed Duration that
+begins at first activation (e.g. "valid for 365 days from activation"). The
+absolute cutoff only exists after the **Activation Code** is redeemed.
+A license uses either **Absolute Expiry** or **Activation-Relative Validity**,
+never both.
+Distinct from trial token TTL: trial TTL is per-token and per-device under a
+Product, and is re-issued on every trial call; **Activation-Relative Validity**
+is per-License, anchored to the License's first activation, and never re-anchors.
+_Avoid_: TTL (reserved for trial tokens), subscription
+
 ## Relationships
 
 - An **Issuer** has one or more **Admins**.

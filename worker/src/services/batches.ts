@@ -44,14 +44,30 @@ export async function createBatch(db: D1Database, issuerId: string, actor: Admin
       quantity: input.quantity,
       maxDevices: maxDevices,
       expiresAt: input.expires_at ?? null,
+      validityDurationSeconds: input.validity_duration_seconds ?? null,
       notes: input.notes ?? null,
       apiKeyId: creator.apiKeyId,
       adminId: creator.adminId,
       now,
     }, [...codes]);
   } catch (error) {
-    if (String(error).includes("UNIQUE")) {
+    const text = String(error);
+    if (text.includes("UNIQUE")) {
       throw new ApiError(409, "CODE_COLLISION", "Activation code collision; retry batch creation");
+    }
+    // SQLite reports named CHECK failures as e.g. "CHECK constraint failed:
+    // chk_license_batches_validity_duration" (see migration 0004). Match those
+    // specific names so future, unrelated CHECK constraints don't get
+    // misreported as VALIDITY_CONFLICT.
+    if (
+      text.includes("chk_license_batches_validity_duration") ||
+      text.includes("chk_licenses_validity_duration")
+    ) {
+      throw new ApiError(
+        400,
+        "VALIDITY_CONFLICT",
+        "expires_at and validity_duration_seconds are mutually exclusive at batch creation"
+      );
     }
     throw error;
   }
@@ -62,7 +78,11 @@ export async function createBatch(db: D1Database, issuerId: string, actor: Admin
     action: "batch.create",
     targetType: "batch",
     targetId: batchId,
-    details: { product_id: product.id, quantity: input.quantity }
+    details: {
+      product_id: product.id,
+      quantity: input.quantity,
+      validity_duration_seconds: input.validity_duration_seconds ?? null
+    }
   });
 
   return {
@@ -73,6 +93,7 @@ export async function createBatch(db: D1Database, issuerId: string, actor: Admin
     quantity: input.quantity,
     max_devices: maxDevices,
     expires_at: input.expires_at ?? null,
+    validity_duration_seconds: input.validity_duration_seconds ?? null,
     activation_codes: [...codes],
     csv: buildCodesCsv([...codes], product.code)
   };

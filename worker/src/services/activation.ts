@@ -64,8 +64,17 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
     });
   }
 
-  if (license.status === "available") {
-    await licenseQueries.markActivated(env.DB, license.id, now);
+  // First activation of the License (status was 'available') materializes
+  // Activation-Relative Validity into licenses.expires_at. See ADR-0006.
+  const isFirstActivation = license.status === "available";
+  const computedExpiresAt =
+    isFirstActivation && license.expires_at === null && license.validity_duration_seconds != null
+      ? new Date(Date.parse(now) + license.validity_duration_seconds * 1000).toISOString()
+      : null;
+  const effectiveExpiresAt = license.expires_at ?? computedExpiresAt;
+
+  if (isFirstActivation) {
+    await licenseQueries.markActivated(env.DB, license.id, now, computedExpiresAt);
   }
 
   await writeAuditLog(env.DB, {
@@ -77,7 +86,13 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
     details: {
       product_code: license.product_code,
       machine_hash: input.machine_hash,
-      platform: input.platform ?? null
+      platform: input.platform ?? null,
+      ...(computedExpiresAt != null
+        ? {
+            validity_duration_seconds: license.validity_duration_seconds,
+            computed_expires_at: computedExpiresAt
+          }
+        : {})
     }
   });
 
@@ -85,7 +100,7 @@ export async function activate(env: Env, body: unknown): Promise<SignedLicenseRe
     license_id: license.id,
     product_code: license.product_code,
     machine_hash: input.machine_hash,
-    expires_at: license.expires_at,
+    expires_at: effectiveExpiresAt,
     max_devices: license.max_devices,
     issued_at: now,
   });

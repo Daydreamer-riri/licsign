@@ -25,13 +25,19 @@ export async function markActivated(
   db: D1Database,
   licenseId: string,
   now: string,
+  computedExpiresAt: string | null,
 ): Promise<void> {
   await run(
     db
       .prepare(
-        "UPDATE licenses SET status = 'activated', activated_at = COALESCE(activated_at, ?), updated_at = ? WHERE id = ?",
+        `UPDATE licenses
+         SET status = 'activated',
+             activated_at = COALESCE(activated_at, ?),
+             expires_at = COALESCE(expires_at, ?),
+             updated_at = ?
+         WHERE id = ?`,
       )
-      .bind(now, now, licenseId),
+      .bind(now, computedExpiresAt, now, licenseId),
   );
 }
 
