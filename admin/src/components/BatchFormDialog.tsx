@@ -18,10 +18,33 @@ import {
   FieldDescription,
   FieldGroup,
   FieldLabel,
+  FieldLegend,
+  FieldSet,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
+
+type ValidityMode = "perpetual" | "absolute" | "relative";
+type ValidityUnit = "days" | "years";
+
+const SECONDS_PER_DAY = 60 * 60 * 24;
+// Match shared/src/schemas.ts year arithmetic exactly (365-day "year").
+const SECONDS_PER_YEAR = SECONDS_PER_DAY * 365;
+const VALIDITY_DURATION_MIN_SECONDS = SECONDS_PER_DAY;
+const VALIDITY_DURATION_MAX_SECONDS = SECONDS_PER_YEAR * 100;
+
+function toSeconds(amount: number, unit: ValidityUnit): number {
+  return unit === "years" ? amount * SECONDS_PER_YEAR : amount * SECONDS_PER_DAY;
+}
 
 /** Generates a batch of activation codes for one product. */
 export function BatchFormDialog({
@@ -39,7 +62,10 @@ export function BatchFormDialog({
   const [quantity, setQuantity] = useState("50");
   const [codePrefix, setCodePrefix] = useState("");
   const [maxDevices, setMaxDevices] = useState("");
-  const [expiresAt, setExpiresAt] = useState("");
+  const [validityMode, setValidityMode] = useState<ValidityMode>("perpetual");
+  const [absoluteExpiresAt, setAbsoluteExpiresAt] = useState("");
+  const [relativeAmount, setRelativeAmount] = useState("1");
+  const [relativeUnit, setRelativeUnit] = useState<ValidityUnit>("years");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -49,26 +75,57 @@ export function BatchFormDialog({
     setQuantity("50");
     setCodePrefix("");
     setMaxDevices("");
-    setExpiresAt("");
+    setValidityMode("perpetual");
+    setAbsoluteExpiresAt("");
+    setRelativeAmount("1");
+    setRelativeUnit("years");
     setNotes("");
     setError(null);
   };
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
-    setSubmitting(true);
     setError(null);
-    try {
-      const body: Record<string, unknown> = {
-        product_id: productId,
-        batch_name: batchName.trim(),
-        quantity: Number(quantity) || 1,
-      };
-      if (codePrefix.trim()) body.code_prefix = codePrefix.trim().toUpperCase();
-      if (maxDevices.trim()) body.max_devices = Number(maxDevices);
-      if (expiresAt) body.expires_at = new Date(expiresAt).toISOString();
-      if (notes.trim()) body.notes = notes.trim();
 
+    const body: Record<string, unknown> = {
+      product_id: productId,
+      batch_name: batchName.trim(),
+      quantity: Number(quantity) || 1,
+    };
+    if (codePrefix.trim()) body.code_prefix = codePrefix.trim().toUpperCase();
+    if (maxDevices.trim()) body.max_devices = Number(maxDevices);
+    if (notes.trim()) body.notes = notes.trim();
+
+    if (validityMode === "absolute") {
+      if (!absoluteExpiresAt) {
+        setError("Pick an expiry date or switch to another validity mode.");
+        return;
+      }
+      const parsed = new Date(absoluteExpiresAt);
+      if (Number.isNaN(parsed.getTime())) {
+        setError("Expiry date is not a valid date/time.");
+        return;
+      }
+      body.expires_at = parsed.toISOString();
+    } else if (validityMode === "relative") {
+      const amount = Math.floor(Number(relativeAmount));
+      if (!Number.isFinite(amount) || amount <= 0) {
+        setError("Enter a positive whole-number duration.");
+        return;
+      }
+      const seconds = toSeconds(amount, relativeUnit);
+      if (
+        seconds < VALIDITY_DURATION_MIN_SECONDS ||
+        seconds > VALIDITY_DURATION_MAX_SECONDS
+      ) {
+        setError("Duration must be between 1 day and 100 years.");
+        return;
+      }
+      body.validity_duration_seconds = seconds;
+    }
+
+    setSubmitting(true);
+    try {
       const result = await api.post<{ id: string }>("/api/admin/batches", body);
       toast.success(`Batch created with ${Number(quantity) || 1} codes`);
       reset();
@@ -154,16 +211,93 @@ export function BatchFormDialog({
                   placeholder="Product default"
                 />
               </Field>
-              <Field>
-                <FieldLabel htmlFor="batch-expires">Expires at</FieldLabel>
-                <Input
-                  id="batch-expires"
-                  type="datetime-local"
-                  value={expiresAt}
-                  onChange={(e) => setExpiresAt(e.target.value)}
-                />
-              </Field>
             </div>
+            <FieldSet>
+              <FieldLegend variant="label">Validity</FieldLegend>
+              <FieldDescription>
+                When the License expires. Activation-relative starts counting at
+                first activation.
+              </FieldDescription>
+              <RadioGroup
+                value={validityMode}
+                onValueChange={(value) =>
+                  setValidityMode(value as ValidityMode)
+                }
+                className="gap-2"
+              >
+                <FieldLabel htmlFor="validity-perpetual">
+                  <Field orientation="horizontal">
+                    <RadioGroupItem
+                      id="validity-perpetual"
+                      value="perpetual"
+                    />
+                    <span>Perpetual — never expires</span>
+                  </Field>
+                </FieldLabel>
+                <FieldLabel htmlFor="validity-absolute">
+                  <Field orientation="horizontal">
+                    <RadioGroupItem id="validity-absolute" value="absolute" />
+                    <span>Absolute expiry — fixed cutoff date</span>
+                  </Field>
+                </FieldLabel>
+                {validityMode === "absolute" && (
+                  <Field>
+                    <FieldLabel htmlFor="batch-expires">Expires at</FieldLabel>
+                    <Input
+                      id="batch-expires"
+                      type="datetime-local"
+                      value={absoluteExpiresAt}
+                      onChange={(e) => setAbsoluteExpiresAt(e.target.value)}
+                    />
+                  </Field>
+                )}
+                <FieldLabel htmlFor="validity-relative">
+                  <Field orientation="horizontal">
+                    <RadioGroupItem id="validity-relative" value="relative" />
+                    <span>Activation-relative — valid for a duration</span>
+                  </Field>
+                </FieldLabel>
+                {validityMode === "relative" && (
+                  <Field>
+                    <FieldLabel htmlFor="batch-relative-amount">
+                      Valid for
+                    </FieldLabel>
+                    <div className="flex gap-2">
+                      <Input
+                        id="batch-relative-amount"
+                        type="number"
+                        inputMode="numeric"
+                        min={1}
+                        step={1}
+                        value={relativeAmount}
+                        onChange={(e) => setRelativeAmount(e.target.value)}
+                        className="flex-1"
+                      />
+                      <Select
+                        value={relativeUnit}
+                        onValueChange={(value) =>
+                          setRelativeUnit(value as ValidityUnit)
+                        }
+                      >
+                        <SelectTrigger
+                          id="batch-relative-unit"
+                          aria-label="Duration unit"
+                        >
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="days">Days</SelectItem>
+                          <SelectItem value="years">Years</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <FieldDescription>
+                      Counted from first activation. Range: 1 day to 100 years.
+                    </FieldDescription>
+                  </Field>
+                )}
+              </RadioGroup>
+            </FieldSet>
             <Field>
               <FieldLabel htmlFor="batch-notes">Notes</FieldLabel>
               <Textarea

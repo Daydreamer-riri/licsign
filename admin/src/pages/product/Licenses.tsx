@@ -4,6 +4,7 @@ import { KeyRoundIcon, SearchIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { formatLicenseValidity } from "@/lib/validity";
 import type { License } from "@/lib/types";
 import { RouteError } from "@/components/RouteError";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -159,7 +160,7 @@ export default function ProductLicensesPage({
                   <TableHead scope="col">Activation Code</TableHead>
                   <TableHead scope="col">Status</TableHead>
                   <TableHead scope="col">Devices</TableHead>
-                  <TableHead scope="col">Expires</TableHead>
+                  <TableHead scope="col">Validity</TableHead>
                   <TableHead scope="col">Created</TableHead>
                 </TableRow>
               </TableHeader>
@@ -181,7 +182,11 @@ export default function ProductLicensesPage({
                       {l.active_device_count}/{l.max_devices}
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">
-                      {formatDate(l.expires_at)}
+                      {formatLicenseValidity({
+                        expires_at: l.expires_at,
+                        validity_duration_seconds: l.validity_duration_seconds,
+                        activated_at: l.activated_at,
+                      })}
                     </TableCell>
                     <TableCell className="text-muted-foreground tabular-nums">
                       {formatDate(l.created_at)}

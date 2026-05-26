@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
 import { formatDate, formatDateTime } from "@/lib/format";
+import { formatLicenseValidity } from "@/lib/validity";
 import type { Activation, License } from "@/lib/types";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { RouteError } from "@/components/RouteError";
@@ -190,7 +191,14 @@ export default function LicenseDetailPage({ loaderData }: Route.ComponentProps) 
             }
           />
           <DetailRow label="Issued to" value={license.issued_to || "—"} />
-          <DetailRow label="Expires" value={formatDate(license.expires_at)} />
+          <DetailRow
+            label="Validity"
+            value={formatLicenseValidity({
+              expires_at: license.expires_at,
+              validity_duration_seconds: license.validity_duration_seconds,
+              activated_at: license.activated_at,
+            })}
+          />
           <DetailRow
             label="First activated"
             value={formatDate(license.activated_at)}

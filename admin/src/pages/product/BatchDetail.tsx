@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { formatLicenseValidity } from "@/lib/validity";
 import type { Batch, BatchLicense } from "@/lib/types";
 import { RouteError } from "@/components/RouteError";
 import { StatusBadge } from "@/components/StatusBadge";
@@ -125,7 +126,13 @@ export default function BatchDetailPage({ loaderData }: Route.ComponentProps) {
               )
             }
           />
-          <DetailRow label="Expires" value={formatDate(batch.expires_at)} />
+          <DetailRow
+            label="Validity"
+            value={formatLicenseValidity({
+              expires_at: batch.expires_at,
+              validity_duration_seconds: batch.validity_duration_seconds,
+            })}
+          />
           <DetailRow label="Created" value={formatDate(batch.created_at)} />
           {batch.notes && (
             <div className="col-span-full">
@@ -151,7 +158,7 @@ export default function BatchDetailPage({ loaderData }: Route.ComponentProps) {
                 <TableHead scope="col">Activation Code</TableHead>
                 <TableHead scope="col">Status</TableHead>
                 <TableHead scope="col">Device Limit</TableHead>
-                <TableHead scope="col">Expires</TableHead>
+                <TableHead scope="col">Validity</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -170,7 +177,11 @@ export default function BatchDetailPage({ loaderData }: Route.ComponentProps) {
                   </TableCell>
                   <TableCell className="tabular-nums">{l.max_devices}</TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">
-                    {formatDate(l.expires_at)}
+                    {formatLicenseValidity({
+                      expires_at: l.expires_at,
+                      validity_duration_seconds: l.validity_duration_seconds,
+                      activated_at: l.activated_at,
+                    })}
                   </TableCell>
                 </TableRow>
               ))}

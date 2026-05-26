@@ -4,6 +4,7 @@ import { LayersIcon, PlusIcon } from "lucide-react";
 
 import { api } from "@/lib/api";
 import { formatDate } from "@/lib/format";
+import { formatLicenseValidity } from "@/lib/validity";
 import type { Batch } from "@/lib/types";
 import { BatchFormDialog } from "@/components/BatchFormDialog";
 import { RouteError } from "@/components/RouteError";
@@ -81,7 +82,7 @@ export default function ProductBatchesPage({
                 <TableHead scope="col">Batch</TableHead>
                 <TableHead scope="col">Quantity</TableHead>
                 <TableHead scope="col">Device Limit</TableHead>
-                <TableHead scope="col">Expires</TableHead>
+                <TableHead scope="col">Validity</TableHead>
                 <TableHead scope="col">Created</TableHead>
               </TableRow>
             </TableHeader>
@@ -99,7 +100,10 @@ export default function ProductBatchesPage({
                   <TableCell className="tabular-nums">{b.quantity}</TableCell>
                   <TableCell className="tabular-nums">{b.max_devices}</TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">
-                    {formatDate(b.expires_at)}
+                    {formatLicenseValidity({
+                      expires_at: b.expires_at,
+                      validity_duration_seconds: b.validity_duration_seconds,
+                    })}
                   </TableCell>
                   <TableCell className="text-muted-foreground tabular-nums">
                     {formatDate(b.created_at)}

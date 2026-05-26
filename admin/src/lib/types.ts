@@ -33,6 +33,7 @@ export interface License {
   max_devices: number;
   issued_to: string | null;
   expires_at: string | null;
+  validity_duration_seconds: number | null;
   activated_at: string | null;
   created_at: string;
   updated_at: string;
@@ -60,6 +61,7 @@ export interface Batch {
   quantity: number;
   max_devices: number;
   expires_at: string | null;
+  validity_duration_seconds: number | null;
   notes: string | null;
   created_at: string;
   product_code: string;
@@ -72,6 +74,7 @@ export interface BatchLicense {
   status: LicenseStatus;
   max_devices: number;
   expires_at: string | null;
+  validity_duration_seconds: number | null;
   activated_at: string | null;
   created_at: string;
 }
