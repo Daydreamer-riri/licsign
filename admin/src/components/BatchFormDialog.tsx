@@ -3,6 +3,7 @@ import type { FormEvent } from "react";
 import { toast } from "sonner";
 
 import { api, ApiError } from "@/lib/api";
+import { cn } from "@/lib/utils";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import {
@@ -240,8 +241,24 @@ export function BatchFormDialog({
                     <span>Absolute expiry — fixed cutoff date</span>
                   </Field>
                 </FieldLabel>
+                <FieldLabel htmlFor="validity-relative">
+                  <Field orientation="horizontal">
+                    <RadioGroupItem id="validity-relative" value="relative" />
+                    <span>Activation-relative — valid for a duration</span>
+                  </Field>
+                </FieldLabel>
+              </RadioGroup>
+              <div
+                className={cn(
+                  "overflow-hidden transition-[height] duration-200 ease-out",
+                  validityMode === "perpetual" && "h-0",
+                  validityMode === "absolute" && "h-[76px]",
+                  validityMode === "relative" && "h-[108px]",
+                )}
+                aria-hidden={validityMode === "perpetual"}
+              >
                 {validityMode === "absolute" && (
-                  <Field>
+                  <Field className="pt-2">
                     <FieldLabel htmlFor="batch-expires">Expires at</FieldLabel>
                     <Input
                       id="batch-expires"
@@ -251,14 +268,8 @@ export function BatchFormDialog({
                     />
                   </Field>
                 )}
-                <FieldLabel htmlFor="validity-relative">
-                  <Field orientation="horizontal">
-                    <RadioGroupItem id="validity-relative" value="relative" />
-                    <span>Activation-relative — valid for a duration</span>
-                  </Field>
-                </FieldLabel>
                 {validityMode === "relative" && (
-                  <Field>
+                  <Field className="pt-2">
                     <FieldLabel htmlFor="batch-relative-amount">
                       Valid for
                     </FieldLabel>
@@ -296,7 +307,7 @@ export function BatchFormDialog({
                     </FieldDescription>
                   </Field>
                 )}
-              </RadioGroup>
+              </div>
             </FieldSet>
             <Field>
               <FieldLabel htmlFor="batch-notes">Notes</FieldLabel>
