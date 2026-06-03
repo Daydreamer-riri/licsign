@@ -7,6 +7,7 @@ import { adminAuthRoutes } from "./routes/adminAuth";
 import { compatRoutes } from "./routes/compat";
 import { openApiDocument } from "./openapi";
 import { jsonError, toApiError } from "./utils/http";
+import { runAuditTrimWithEnv } from "./services/auditTrim";
 
 const app = new Hono<{ Bindings: Env }>();
 
@@ -46,5 +47,10 @@ app.onError((error, c) => {
   return jsonError(c, apiError.status, apiError.code, apiError.message, apiError.details);
 });
 
-export default app;
+export default {
+  fetch: app.fetch.bind(app),
+  async scheduled(_controller: ScheduledController, env: Env, _ctx: ExecutionContext) {
+    await runAuditTrimWithEnv(env.DB, env.AUDIT_LOG_RETENTION_DAYS);
+  },
+} satisfies ExportedHandler<Env>;
 

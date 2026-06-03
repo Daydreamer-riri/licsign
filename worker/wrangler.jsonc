@@ -5,7 +5,8 @@
   "compatibility_date": "2026-05-18",
   "vars": {
     "LICENSE_ISSUER": "licsign",
-    "CORS_ORIGIN": "*"
+    "CORS_ORIGIN": "*",
+    "AUDIT_LOG_RETENTION_DAYS": "30"
   },
   // database_id is a placeholder. Maintainers should run `wrangler d1 create license_service`
   // once and paste the returned UUID below so local `pnpm deploy` works without prompts.
@@ -27,9 +28,13 @@
   "observability": {
     "enabled": true,
     "head_sampling_rate": 1
+  },
+  "triggers": {
+    "crons": [
+      "0 3 * * *"
+    ]
   }
   // Secrets are set with `wrangler secret put` (or `pnpm setup:remote`):
   //   - SIGNING_KEY_ID
   //   - SIGNING_PRIVATE_JWK
 }
-

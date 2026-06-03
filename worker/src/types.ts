@@ -5,6 +5,7 @@ export interface Env {
   CORS_ORIGIN?: string;
   SIGNING_PRIVATE_JWK: string;
   SIGNING_KEY_ID: string;
+  AUDIT_LOG_RETENTION_DAYS?: string;
 }
 
 export type AdminActor =

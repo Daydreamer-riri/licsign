@@ -57,6 +57,28 @@ export async function countAuditLogs(
   return row?.count ?? 0;
 }
 
+export async function deleteAuditLogsBefore(
+  db: D1Database,
+  cutoffIso: string,
+  batchSize = 1000,
+): Promise<number> {
+  let total = 0;
+  for (;;) {
+    const result = await run(
+      db
+        .prepare(
+          `DELETE FROM audit_logs
+           WHERE id IN (SELECT id FROM audit_logs WHERE created_at < ? LIMIT ?)`,
+        )
+        .bind(cutoffIso, batchSize),
+    );
+    const deleted = result.meta.changes ?? 0;
+    total += deleted;
+    if (deleted < batchSize) break;
+  }
+  return total;
+}
+
 export async function queryAuditLogs(
   db: D1Database,
   whereClause: string,
