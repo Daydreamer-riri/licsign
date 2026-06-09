@@ -16,6 +16,8 @@ export interface Product {
   trial_start_at: string | null;
   trial_end_at: string | null;
   trial_token_ttl_seconds: number | null;
+  evaluation_enabled: number;
+  evaluation_token_ttl_days: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -104,6 +106,7 @@ export interface RecentActivation {
 export interface DashboardStats {
   product_count: number;
   license_count: number;
+  evaluation_count: number;
   recent_activations: RecentActivation[];
 }
 
@@ -142,6 +145,7 @@ export interface ClientIntegrationConfig {
   product_code: string;
   expected_issuer: string;
   trial_enabled: boolean;
+  evaluation_enabled: boolean;
   signing_keys: SigningKeyEntry[];
 }
 

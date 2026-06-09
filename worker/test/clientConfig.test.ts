@@ -17,6 +17,8 @@ function makeProduct(over: Partial<ProductRow> = {}): ProductRow {
     trial_start_at: null,
     trial_end_at: null,
     trial_token_ttl_seconds: null,
+    evaluation_enabled: 0,
+    evaluation_token_ttl_days: null,
     created_at: now,
     updated_at: now,
     ...over,

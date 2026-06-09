@@ -14,6 +14,11 @@ interface ResolvedTrial {
   ttl_seconds: number | null;
 }
 
+interface ResolvedEvaluation {
+  enabled: boolean;
+  ttl_days: number | null;
+}
+
 function pick<T>(next: T | undefined, prev: T | null | undefined): T | null {
   if (next !== undefined) return next;
   return prev ?? null;
@@ -49,6 +54,24 @@ function resolveTrialFields(
   return { enabled, start_at, end_at, ttl_seconds };
 }
 
+function resolveEvaluationFields(
+  input: { evaluation_enabled?: boolean; evaluation_token_ttl_days?: number | null },
+  existing?: ProductRow
+): ResolvedEvaluation {
+  const enabled = input.evaluation_enabled ?? (existing ? existing.evaluation_enabled === 1 : false);
+  const ttl_days = pick(input.evaluation_token_ttl_days, existing?.evaluation_token_ttl_days);
+
+  if (enabled && ttl_days === null) {
+    throw new ApiError(
+      400,
+      "EVALUATION_CONFIG_INCOMPLETE",
+      "evaluation_enabled requires evaluation_token_ttl_days"
+    );
+  }
+
+  return { enabled, ttl_days };
+}
+
 export async function listProducts(
   db: D1Database,
   issuerId: string,
@@ -76,6 +99,7 @@ export async function createProduct(
 ): Promise<ProductRow> {
   const input = createProductSchema.parse(body);
   const trial = resolveTrialFields(input);
+  const evaluation = resolveEvaluationFields(input);
   const now = nowIso();
   const id = createId("prd");
 
@@ -91,6 +115,8 @@ export async function createProduct(
       trialStartAt: trial.start_at,
       trialEndAt: trial.end_at,
       trialTtlSeconds: trial.ttl_seconds,
+      evaluationEnabled: evaluation.enabled,
+      evaluationTtlDays: evaluation.ttl_days,
       now,
     });
   } catch (error) {
@@ -130,6 +156,7 @@ export async function updateProduct(
   }
 
   const trial = resolveTrialFields(input, existing);
+  const evaluation = resolveEvaluationFields(input, existing);
 
   const next = {
     code: input.code ?? existing.code,
@@ -150,6 +177,8 @@ export async function updateProduct(
       trialStartAt: trial.start_at,
       trialEndAt: trial.end_at,
       trialTtlSeconds: trial.ttl_seconds,
+      evaluationEnabled: evaluation.enabled,
+      evaluationTtlDays: evaluation.ttl_days,
       now: nowIso(),
     });
   } catch (error) {

@@ -61,6 +61,9 @@ window (`trial_start_at` / `trial_end_at`) and a per-token TTL
 code required — and receive a signed offline license whose payload sets
 `kind: "trial"` and `license_id: null`.
 
+This is the **Promotional Trial**: a time-windowed, all-devices offer controlled
+by the Admin. Distinct from Evaluation (see below).
+
 Trial tokens carry an **independent TTL**, not tied to the trial window itself.
 This gives three useful properties:
 
@@ -81,6 +84,44 @@ consumes paid-license quota.
 V1 does not throttle the trial endpoint. If trial-token harvesting becomes a real
 problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
 `products.trial_recovery_enabled` flag without breaking the existing API.
+
+## Evaluation
+
+Each product can optionally carry an **Evaluation** offer (`evaluation_enabled`,
+`evaluation_token_ttl_days`). A device calls `POST /api/client/evaluate` with only
+`product_code + machine_hash` — no activation code required — and receives a signed
+offline license whose payload sets `kind: "evaluation"` and `license_id: null`.
+
+**Why independent from Promotional Trial.** Evaluation is always-on (no time
+window) and per-device one-shot. Promotional Trial is time-windowed and freely
+renewable within the window. A product can have both configured simultaneously;
+they are independent offers. Clients can hold an evaluation token and a trial token
+at the same time.
+
+**Anchored expiry.** The evaluation window is `first_issued_at + evaluation_token_ttl_days`.
+This anchor is written once on the first call and never updated. A second call
+within the window re-signs a fresh token with the same `expires_at`. Once expired,
+the device has permanently used its one evaluation for that product. This mirrors
+the Activation-Relative Validity pattern but is applied to a per-device evaluation
+record rather than a paid License row.
+
+**Why days, not seconds.** Evaluation durations are human-facing ("try for 7
+days"). Using days as the unit avoids Admin mistakes from typing `604800` instead
+of `7`, and matches the natural granularity of the use case. Seconds remain the
+internal representation for expiry calculation.
+
+**Product status is not checked.** Evaluation only cares about `evaluation_enabled`
+— it does not check `products.status`. If an Admin archives a product, existing
+evaluations run their course. If they want to stop evaluation, they disable it
+explicitly. The two controls are independent.
+
+**Independence from paid activation.** Evaluation never creates or modifies
+`activations` rows. A device with a paid license can call `/evaluate` without being
+rejected, and a device with an expired evaluation can still purchase an Activation
+Code and activate normally.
+
+V1 does not throttle the evaluate endpoint for the same reasons as the trial
+endpoint.
 
 ## Restore by machine_hash
 

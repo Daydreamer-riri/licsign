@@ -26,9 +26,24 @@ _Avoid_: License key, token
 
 **Offline License**:
 A signed artifact the client stores and verifies locally; it is either a paid
-license redeemed from an Activation Code, or a trial issued directly by the trial
-endpoint without one.
+license redeemed from an **Activation Code**, a trial issued by the trial
+endpoint during a **Promotional Trial** window, or an evaluation issued by the
+evaluate endpoint as a one-shot **Evaluation**.
 _Avoid_: Activation code
+
+**Promotional Trial**:
+A product-scoped, time-windowed offer where any device can obtain a trial
+**Offline License** without an **Activation Code**. The window is set by the
+**Admin** (start, end, token TTL). Devices may renew tokens freely within the
+window. Distinct from **Evaluation**.
+_Avoid_: Trial (ambiguous — always qualify as Promotional or Evaluation)
+
+**Evaluation**:
+A per-device, one-shot free assessment period for a **Product**. A device
+gets exactly one evaluation token of a fixed TTL; once issued, it cannot be
+renewed or re-issued. The evaluation offer is always-on (not time-windowed)
+and is configured per-product by the **Admin**. Distinct from **Promotional Trial**.
+_Avoid_: Free trial, trial (ambiguous)
 
 **Absolute Expiry**:
 A license expiration model where the cutoff is a fixed wall-clock timestamp
@@ -42,10 +57,11 @@ begins at first activation (e.g. "valid for 365 days from activation"). The
 absolute cutoff only exists after the **Activation Code** is redeemed.
 A license uses either **Absolute Expiry** or **Activation-Relative Validity**,
 never both.
-Distinct from trial token TTL: trial TTL is per-token and per-device under a
-Product, and is re-issued on every trial call; **Activation-Relative Validity**
-is per-License, anchored to the License's first activation, and never re-anchors.
-_Avoid_: TTL (reserved for trial tokens), subscription
+Distinct from trial and evaluation token TTL: trial TTL is per-token and
+per-device under a **Product** and is re-issued on every trial call; evaluation
+TTL is one-shot per device; **Activation-Relative Validity** is per-License,
+anchored to the License's first activation, and never re-anchors.
+_Avoid_: TTL (reserved for trial and evaluation tokens), subscription
 
 ## Relationships
 

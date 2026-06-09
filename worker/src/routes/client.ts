@@ -3,6 +3,7 @@ import type { Env } from "../types";
 import { activate, deactivate } from "../services/activation";
 import { issueTrial } from "../services/trial";
 import { restoreLicense } from "../services/restore";
+import { issueEvaluation } from "../services/evaluation";
 
 export const clientRoutes = new Hono<{ Bindings: Env }>();
 
@@ -23,5 +24,10 @@ clientRoutes.post("/trial", async (c) => {
 
 clientRoutes.post("/restore", async (c) => {
   const result = await restoreLicense(c.env, await c.req.json());
+  return c.json(result);
+});
+
+clientRoutes.post("/evaluate", async (c) => {
+  const result = await issueEvaluation(c.env, await c.req.json());
   return c.json(result);
 });

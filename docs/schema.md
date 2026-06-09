@@ -2,7 +2,7 @@
 
 The canonical source of truth is `worker/migrations/0001_initial.sql` (plus later
 numbered migration files: `0002_product_trial.sql`, `0003_admin_auth.sql`,
-`0004_license_validity_duration.sql`). This document provides a readable
+`0004_license_validity_duration.sql`, `0005_evaluation.sql`). This document provides a readable
 reference with column details, constraints, relationships, and index rationale.
 
 ## ER Diagram
@@ -15,10 +15,12 @@ issuers ──1:N── api_keys
          ──1:N── licenses
          ──1:N── audit_logs
          ──1:N── trial_activations
+         ──1:N── evaluation_activations
 
 products ──1:N── license_batches
          ──1:N── licenses
          ──1:N── trial_activations
+         ──1:N── evaluation_activations
 
 license_batches ──1:N── licenses
 
@@ -116,10 +118,12 @@ Licensed products that activation codes belong to.
 | description | TEXT | NOT NULL, DEFAULT '' | Optional description |
 | status | TEXT | NOT NULL, CHECK IN ('active', 'archived') | Product lifecycle |
 | default_max_devices | INTEGER | NOT NULL, DEFAULT 1 | Default device limit for batches/licenses created under this product |
-| trial_enabled | INTEGER | NOT NULL, DEFAULT 0 | 0/1 toggle for the per-product trial window |
+| trial_enabled | INTEGER | NOT NULL, DEFAULT 0 | 0/1 toggle for the per-product Promotional Trial window |
 | trial_start_at | TEXT | nullable | ISO 8601; required when `trial_enabled = 1` |
 | trial_end_at | TEXT | nullable | ISO 8601; required when `trial_enabled = 1`, must be strictly after `trial_start_at` |
-| trial_token_ttl_seconds | INTEGER | nullable | Per-token TTL for trial JWS; required when `trial_enabled = 1`; bounded 60s – 90d at the API layer |
+| trial_token_ttl_seconds | INTEGER | nullable | Per-token TTL for Promotional Trial JWS; required when `trial_enabled = 1`; bounded 60s – 90d at the API layer |
+| evaluation_enabled | INTEGER | NOT NULL, DEFAULT 0 | 0/1 toggle for per-device one-shot Evaluation |
+| evaluation_token_ttl_days | INTEGER | nullable | Evaluation window length in whole days; required when `evaluation_enabled = 1`; minimum 1 |
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
 | updated_at | TEXT | NOT NULL | ISO 8601 timestamp |
 
@@ -232,8 +236,8 @@ Indexes:
 
 ## trial_activations
 
-Tracks devices that have requested a trial license under a product. Independent
-from `activations` because trial tokens are not backed by a `licenses` row.
+Tracks devices that have requested a **Promotional Trial** license under a product.
+Independent from `activations` because trial tokens are not backed by a `licenses` row.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
@@ -258,6 +262,30 @@ Indexes:
 - `idx_trial_activations_issuer_id` — list trials by issuer
 - `idx_trial_activations_product_id` — list trials by product (count trial users, etc.)
 - `idx_trial_activations_machine_hash` — lookup a device across products
+
+## evaluation_activations
+
+Tracks devices that have used their one-shot **Evaluation** for a product. The
+evaluation window is anchored to `first_issued_at` and never moves. Independent
+from `activations` and `trial_activations`.
+
+| Column | Type | Constraints | Description |
+|--------|------|-------------|-------------|
+| id | TEXT | PRIMARY KEY | Internal identifier |
+| issuer_id | TEXT | NOT NULL, FK → issuers(id) ON DELETE CASCADE | Owning issuer (denormalized for fast filtering) |
+| product_id | TEXT | NOT NULL, FK → products(id) ON DELETE CASCADE | Product the evaluation was issued for |
+| machine_hash | TEXT | NOT NULL | SHA-256 hex digest of client hardware identifiers |
+| first_issued_at | TEXT | NOT NULL | Timestamp of first evaluation issuance for this device under this product |
+| expires_at | TEXT | NOT NULL | `first_issued_at + product.evaluation_token_ttl_days * 86400s` — never updated after creation |
+
+Constraints:
+
+- UNIQUE (product_id, machine_hash) — one evaluation record per device per product
+
+Indexes:
+
+- `idx_evaluation_activations_issuer_id` — list evaluations by issuer; used for dashboard `evaluation_count`
+- `idx_evaluation_activations_product_id` — list evaluations by product
 
 ## audit_logs
 

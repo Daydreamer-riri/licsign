@@ -78,7 +78,7 @@ Marks a machine activation as deactivated, allowing the seat to be reused.
 
 ### `POST /api/client/trial`
 
-Issues a signed trial license for the requesting machine when the product's trial
+Issues a signed **Promotional Trial** license for the requesting machine when the product's trial
 window is active. **No activation code required.**
 
 Request:
@@ -114,6 +114,49 @@ When the trial window closes, previously issued tokens remain valid offline unti
 their TTL expires, but the endpoint stops issuing new ones. Clients that want to
 continue beyond the window must fall back to `POST /api/client/activate` with a
 purchased activation code.
+
+### `POST /api/client/evaluate`
+
+Issues a signed **Evaluation** license — a per-device, one-shot free assessment
+period. **No activation code required.** The evaluation offer is always-on (no
+time window) when enabled on the product.
+
+Request:
+
+```json
+{
+  "product_code": "my_product",
+  "machine_hash": "64-character-sha256-hex",
+  "client_version": "1.0.0",
+  "platform": "android-tv"
+}
+```
+
+Response shape matches `POST /api/client/activate`, with the following differences
+in the `license` payload:
+
+- `kind` is `"evaluation"`
+- `license_id` is `null`
+- `expires_at` is `first_issued_at + product.evaluation_token_ttl_days` (anchored
+  to the first call for this `(product_code, machine_hash)` pair — never moves)
+
+The anchored expiry means the evaluation window is fixed from the first call. A
+second call within the window returns a fresh signed token with the same
+`expires_at` (useful to recover from wiped local storage). The window cannot be
+renewed or extended.
+
+Errors:
+
+- `PRODUCT_NOT_FOUND` (`404`) — no product with that `product_code`
+- `EVALUATION_INACTIVE` (`403`) — evaluation is not enabled or
+  `evaluation_token_ttl_days` is not set for this product
+- `EVALUATION_EXPIRED` (`403`) — this device has already used its evaluation and
+  the window has closed; the client should prompt the user to purchase
+- `BAD_REQUEST` (`400`) — request shape invalid
+
+Unlike `POST /api/client/trial`, evaluation does not check product `status` —
+disabling evaluation on a product only stops new issuance; existing tokens remain
+valid until their anchored expiry.
 
 ### `POST /api/client/restore`
 
@@ -194,6 +237,7 @@ ready to hand off as JSON:
   "product_code": "flow",
   "expected_issuer": "licsign",
   "trial_enabled": true,
+  "evaluation_enabled": false,
   "signing_keys": [
     {
       "kid": "kid_xxx",
@@ -220,7 +264,9 @@ Create product body:
   "trial_enabled": false,
   "trial_start_at": null,
   "trial_end_at": null,
-  "trial_token_ttl_seconds": null
+  "trial_token_ttl_seconds": null,
+  "evaluation_enabled": false,
+  "evaluation_token_ttl_days": null
 }
 ```
 
@@ -230,6 +276,13 @@ of `trial_start_at`, `trial_end_at`, and `trial_token_ttl_seconds` are required;
 90 days. `PATCH /api/admin/products/:id` accepts the same fields; toggling
 `trial_enabled` to `false` stops new trial issuance immediately while existing
 trial tokens remain valid offline until their TTL expires.
+
+The two `evaluation_*` fields are optional and independent of the trial fields — a
+product can have both configured simultaneously. `evaluation_token_ttl_days` is a
+positive integer (minimum 1). When `evaluation_enabled` is `true`,
+`evaluation_token_ttl_days` must be set. Toggling `evaluation_enabled` to `false`
+stops new evaluation issuance; existing evaluation tokens remain valid until their
+anchored expiry.
 
 ### Batches
 
@@ -292,8 +345,12 @@ Search query parameters:
 
 - `GET /api/admin/dashboard/stats`
 
-Recent activations include paid license activations only; trial activations are
-not mixed into this feed.
+Returns `product_count`, `license_count`, `evaluation_count`, and
+`recent_activations`. `evaluation_count` is the total number of
+`evaluation_activations` rows for the issuer — i.e. how many distinct devices
+have started an evaluation across all products. Recent activations include paid
+license activations only; trial and evaluation activations are not mixed into
+this feed.
 
 ### Audit logs
 

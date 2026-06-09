@@ -28,9 +28,14 @@ any code — they explain why the flow looks the way it does.
 > the client around re-sending the code each launch — build it around verifying
 > the stored token.
 
-There is also a **trial** path (`POST /api/client/trial`) that issues a
+There is also a **Promotional Trial** path (`POST /api/client/trial`) that issues a
 short-lived Offline License **without** an Activation Code, when the product has
 an open trial window.
+
+There is also an **Evaluation** path (`POST /api/client/evaluate`) that issues a
+per-device, one-shot Offline License **without** an Activation Code, when the
+product has evaluation enabled. The evaluation window is anchored at first call
+and never moves.
 
 After a reinstall wipes the stored token, a device that was already activated can
 recover its Offline License with `POST /api/client/restore` — again **without** an
@@ -43,7 +48,8 @@ This guide uses the project's canonical vocabulary from
 
 - **Activation Code** — a user-facing code exchanged online for an Offline License.
 - **Offline License** — the signed artifact the client stores and verifies locally.
-  It carries a `kind`: a paid license, or a `trial`.
+  It carries a `kind`: a paid license (`"license"`), a Promotional Trial (`"trial"`),
+  or an Evaluation (`"evaluation"`).
 - **Product** — what the license grants access to, identified by a `product_code`.
 - **Issuer** — the license-issuing tenant; its identifier appears in every token
   as the `issuer` field.
@@ -61,7 +67,8 @@ of these can be discovered at runtime — they are integration-time inputs.
 | **`product_code`** | The product this client activates against, e.g. `flow`. A short slug matching `^[A-Za-z0-9][A-Za-z0-9_-]*$`. |
 | **Verification public key(s)** | One ES256 (P-256) public key **per signing key id (`kid`)**. You need the current key and every older key whose tokens must still verify. See §3.3. |
 | **Expected `issuer`** | The exact string the client must find in every token's `issuer` field. |
-| **Trial availability** | Whether the product has a trial window, so you know whether to implement the trial path. |
+| **Trial availability** | Whether the product has a Promotional Trial window, so you know whether to implement the trial path. |
+| **Evaluation availability** | Whether the product has Evaluation enabled (`evaluation_enabled: true` in the client-config bundle), so you know whether to implement the evaluate path. |
 
 The operator can export all of the above at once: in the Admin UI, open the
 product's **Overview** tab and use the **Client Config** button to copy a JSON
@@ -124,8 +131,8 @@ mishandle the timestamps. Parse the fields below explicitly.
 | Field | Type | Notes |
 |---|---|---|
 | `version` | `1` | Token schema version. Reject anything you do not understand. |
-| `kind` | `"trial"` or **absent** | Absent (or `"license"`) means a paid license. `"trial"` means a trial token. |
-| `license_id` | `string` \| `null` | The backing license id for paid tokens. **`null` for trial tokens.** |
+| `kind` | `"trial"`, `"evaluation"`, or **absent** | Absent (or `"license"`) means a paid license. `"trial"` means a Promotional Trial token. `"evaluation"` means a one-shot Evaluation token. |
+| `license_id` | `string` \| `null` | The backing license id for paid tokens. **`null` for trial and evaluation tokens.** |
 | `product_code` | `string` | Must equal the client's expected `product_code`. |
 | `machine_hash` | `string` | The device this token is bound to. Must equal the client's own `machine_hash`. |
 | `features` | `string[]` | Reserved for future feature flags. Currently always `[]`. |
@@ -253,8 +260,9 @@ the license's `max_devices`.
 
 ### 5.3 `POST /api/client/trial`
 
-Issues a trial Offline License **without an Activation Code**, when the product
-has an open trial window.
+Issues a **Promotional Trial** Offline License **without an Activation Code**, when
+the product has an open trial window. This is a time-windowed, all-devices offer
+controlled by the Admin. See §5.3a for the per-device one-shot **Evaluation**.
 
 **Request:**
 
@@ -292,6 +300,56 @@ the current token expires.
 When the trial window closes, tokens already issued **stay valid offline until
 their own `expires_at`**, but the endpoint stops issuing new ones — a renewal
 attempt then returns `TRIAL_INACTIVE`.
+
+### 5.3a `POST /api/client/evaluate`
+
+Issues an **Evaluation** Offline License — a per-device, one-shot free assessment
+period. **No Activation Code required.** The offer is always-on when
+`evaluation_enabled` is true for the product (no time window to wait for).
+
+**How it differs from Promotional Trial:**
+
+| | Promotional Trial (`/trial`) | Evaluation (`/evaluate`) |
+|---|---|---|
+| Offer type | Time-windowed, all devices | Always-on, per device, one-shot |
+| Renewability | Freely renewable within window | Window anchored at first call, never moves |
+| Controlled by | Admin time window | `evaluation_enabled` toggle |
+| `kind` in token | `"trial"` | `"evaluation"` |
+
+**Request:**
+
+```json
+{
+  "product_code": "flow",
+  "machine_hash": "e3b0c442...b7852b855",
+  "client_version": "1.0.0",
+  "platform": "android-tv"
+}
+```
+
+`product_code` and `machine_hash` are required; `client_version` and `platform`
+are optional metadata.
+
+**Response `200`:** identical shape to `activate`. The token's payload differs:
+`kind` is `"evaluation"`, `license_id` is `null`, and `expires_at` is
+`first_issued_at + evaluation_token_ttl_days` — anchored to the **first** call for
+this `(product_code, machine_hash)` pair. Subsequent calls within the window return
+a fresh token with the same `expires_at` (useful for recovery after wiped storage)
+but do not extend the window.
+
+**Errors:**
+
+| `error` | HTTP | Meaning | Client action |
+|---|---|---|---|
+| `PRODUCT_NOT_FOUND` | 404 | No product with that `product_code`. | Configuration error — surface it. |
+| `EVALUATION_INACTIVE` | 403 | Evaluation not enabled or `evaluation_token_ttl_days` not set. | Show a "no free trial available" message; fall back to Activation Code. |
+| `EVALUATION_EXPIRED` | 403 | This device has already used its evaluation and the window has closed. | Prompt the user to purchase an Activation Code. |
+| `BAD_REQUEST` | 400 | Request shape invalid. | Fix the request. |
+| `SERVER_ERROR` | 500 | Server fault. | Transient — retry with backoff. |
+
+Once a device receives `EVALUATION_EXPIRED`, its evaluation opportunity for that
+product is permanently consumed. The device can still activate normally with a
+purchased Activation Code — evaluation and paid activation are fully independent.
 
 ### 5.4 `POST /api/client/deactivate`
 

@@ -3,6 +3,7 @@ import * as dashboardQueries from "../db/queries/dashboard";
 interface DashboardStats {
   product_count: number;
   license_count: number;
+  evaluation_count: number;
   recent_activations: Array<{
     activation_id: string;
     license_id: string;
@@ -20,11 +21,12 @@ export async function getDashboardStats(
   issuerId: string,
   limit = 10
 ): Promise<DashboardStats> {
-  const [product_count, license_count, recent_activations] = await Promise.all([
+  const [product_count, license_count, evaluation_count, recent_activations] = await Promise.all([
     dashboardQueries.getProductCount(db, issuerId),
     dashboardQueries.getLicenseCount(db, issuerId),
+    dashboardQueries.getEvaluationCount(db, issuerId),
     dashboardQueries.getRecentActivations(db, issuerId, limit),
   ]);
 
-  return { product_count, license_count, recent_activations };
+  return { product_count, license_count, evaluation_count, recent_activations };
 }
