@@ -52,9 +52,9 @@ Reasoning:
 The private JWK is stored as `SIGNING_PRIVATE_JWK` in Cloudflare secrets. The public
 key is embedded in the Android TV app.
 
-## Trial Mode
+## Promotional Trial Mode
 
-Each product carries a per-product trial switch (`trial_enabled`) plus a time
+Each product carries a per-product Promotional Trial switch (`trial_enabled`) plus a time
 window (`trial_start_at` / `trial_end_at`) and a per-token TTL
 (`trial_token_ttl_seconds`). While the window is active, clients can call
 `POST /api/client/trial` with only `product_code + machine_hash` — no activation
@@ -64,10 +64,10 @@ code required — and receive a signed offline license whose payload sets
 This is the **Promotional Trial**: a time-windowed, all-devices offer controlled
 by the Admin. Distinct from Evaluation (see below).
 
-Trial tokens carry an **independent TTL**, not tied to the trial window itself.
+Promotional Trial tokens carry an **independent TTL**, not tied to the Promotional Trial window itself.
 This gives three useful properties:
 
-1. When the trial window ends, in-flight tokens stay valid offline until their TTL
+1. When the Promotional Trial window ends, in-flight tokens stay valid offline until their TTL
    expires, so existing users do not see an instant blackout.
 2. The window can be extended or shortened without affecting any already-issued
    token; the change only takes effect on the next renewal.
@@ -75,13 +75,13 @@ This gives three useful properties:
    succeeds (still in window) or returns `TRIAL_INACTIVE` (window closed), at
    which point the client falls back to the paid `POST /api/client/activate`.
 
-Trial activations live in a separate `trial_activations` table keyed by
+Promotional Trial activations live in a separate `trial_activations` table keyed by
 `(product_id, machine_hash)`. They never share rows with paid `licenses` /
 `activations`, which keeps accounting, statistics, and audit log streams clean.
-The trial endpoint is fully idempotent for the same `machine_hash`; it never
+The `/trial` endpoint is fully idempotent for the same `machine_hash`; it never
 consumes paid-license quota.
 
-V1 does not throttle the trial endpoint. If trial-token harvesting becomes a real
+V1 does not throttle the `/trial` endpoint. If Promotional Trial-token harvesting becomes a real
 problem, add per-`machine_hash` rate limiting (KV or in-memory) and/or a
 `products.trial_recovery_enabled` flag without breaking the existing API.
 
@@ -95,7 +95,7 @@ offline license whose payload sets `kind: "evaluation"` and `license_id: null`.
 **Why independent from Promotional Trial.** Evaluation is always-on (no time
 window) and per-device one-shot. Promotional Trial is time-windowed and freely
 renewable within the window. A product can have both configured simultaneously;
-they are independent offers. Clients can hold an evaluation token and a trial token
+they are independent offers. Clients can hold an Evaluation token and a Promotional Trial token
 at the same time.
 
 **Anchored expiry.** The evaluation window is `first_issued_at + evaluation_token_ttl_days`.
@@ -121,7 +121,7 @@ explicitly. The two controls are independent.
 rejected, and a device with an expired evaluation can still purchase an Activation
 Code and activate normally.
 
-V1 does not throttle the evaluate endpoint for the same reasons as the trial
+V1 does not throttle the evaluate endpoint for the same reasons as the `/trial`
 endpoint.
 
 ## Restore by machine_hash
@@ -146,7 +146,7 @@ disabled/revoked/expired License — or an archived Product — cannot be restor
 Restore is feasible **only** if `machine_hash` is stable across an
 uninstall+reinstall (Android `ANDROID_ID` is, for an unchanged signing key).
 
-Like the trial endpoint, V1 does not throttle restore; per-`machine_hash` rate
+Like the `/trial` endpoint, V1 does not throttle restore; per-`machine_hash` rate
 limiting (a Cloudflare WAF rule, or KV counters) is the recommended follow-up if
 bulk probing with leaked `machine_hash` values becomes a problem. Successful
 restores write a `client.restore` audit log; `NO_ACTIVATION` failures write a
@@ -182,8 +182,8 @@ read the materialized `expires_at` unchanged. See ADR-0006 for the storage
 decision and ADR-0007 for why the JWS payload is not extended with Duration
 metadata.
 
-Distinct from trial token TTL: trial TTL is a per-token, per-device window
-re-issued on every trial call. Activation-Relative Validity is a per-License,
+Distinct from Promotional Trial token TTL: Promotional Trial TTL is a per-token, per-device window
+re-issued on every `/trial` call. Activation-Relative Validity is a per-License,
 one-shot Duration anchored to that License's first activation.
 
 ## Revocation Tradeoff

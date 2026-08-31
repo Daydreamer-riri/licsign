@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { createProduct, updateProduct } from "../src/services/products";
+import { createProduct, getProduct, listProducts, updateProduct } from "../src/services/products";
 import type { ProductRow } from "../src/db/models";
 import type { AdminActor } from "../src/types";
 
@@ -81,8 +81,16 @@ class FakeStatement {
   }
 
   async all<T>() {
-    throw new Error(`unhandled all(): ${this.sql}`);
-    return { results: [] as T[] };
+    const sql = this.sql.trim();
+    if (sql.includes("FROM products") && sql.includes("LEFT JOIN")) {
+      const issuerId = this.args[1];
+      return {
+        results: this.db.products
+          .filter((product) => product.issuer_id === issuerId)
+          .map((product) => ({ ...product, license_count: 0 })) as T[],
+      };
+    }
+    throw new Error(`unhandled all(): ${sql}`);
   }
 }
 
@@ -155,6 +163,22 @@ describe("products service — evaluation fields", () => {
 
     expect(product.evaluation_token_ttl_days).toBe(14);
     expect(product.evaluation_enabled).toBe(1);
+  });
+
+  it("list and detail queries expose evaluation fields", async () => {
+    db.products.push({
+      id: "prd_1", issuer_id: "iss_test", code: "tv-app", name: "TV App", description: "",
+      status: "active", default_max_devices: 1,
+      trial_enabled: 0, trial_start_at: null, trial_end_at: null, trial_token_ttl_seconds: null,
+      evaluation_enabled: 1, evaluation_token_ttl_days: 7,
+      created_at: "2026-01-01T00:00:00.000Z", updated_at: "2026-01-01T00:00:00.000Z",
+    });
+
+    const [listed] = await listProducts(db as unknown as D1Database, "iss_test");
+    const detail = await getProduct(db as unknown as D1Database, "iss_test", "prd_1");
+
+    expect(listed).toMatchObject({ evaluation_enabled: 1, evaluation_token_ttl_days: 7 });
+    expect(detail).toMatchObject({ evaluation_enabled: 1, evaluation_token_ttl_days: 7 });
   });
 
   it("rejects an evaluation duration outside the supported date range", async () => {

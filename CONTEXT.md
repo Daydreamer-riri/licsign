@@ -26,13 +26,13 @@ _Avoid_: License key, token
 
 **Offline License**:
 A signed artifact the client stores and verifies locally; it is either a paid
-license redeemed from an **Activation Code**, a trial issued by the trial
-endpoint during a **Promotional Trial** window, or an evaluation issued by the
-evaluate endpoint as a one-shot **Evaluation**.
+license redeemed from an **Activation Code**, a Promotional Trial license issued by the
+`/trial` endpoint during a **Promotional Trial** window, or an Evaluation license issued by the
+`/evaluate` endpoint as a one-shot **Evaluation**.
 _Avoid_: Activation code
 
 **Promotional Trial**:
-A product-scoped, time-windowed offer where any device can obtain a trial
+A product-scoped, time-windowed offer where any device can obtain a Promotional Trial
 **Offline License** without an **Activation Code**. The window is set by the
 **Admin** (start, end, token TTL). Devices may renew tokens freely within the
 window. Distinct from **Evaluation**.
@@ -58,11 +58,11 @@ begins at first activation (e.g. "valid for 365 days from activation"). The
 absolute cutoff only exists after the **Activation Code** is redeemed.
 A license uses either **Absolute Expiry** or **Activation-Relative Validity**,
 never both.
-Distinct from trial and evaluation token TTL: trial TTL is per-token and
-per-device under a **Product** and is re-issued on every trial call; an
-evaluation JWS may be re-signed during its one-shot, anchored window; **Activation-Relative Validity** is per-License,
+Distinct from Promotional Trial and Evaluation token TTL: Promotional Trial TTL is per-token and
+per-device under a **Product** and is re-issued on every Promotional Trial call; an
+Evaluation JWS may be re-signed during its one-shot, anchored window; **Activation-Relative Validity** is per-License,
 anchored to the License's first activation, and never re-anchors.
-_Avoid_: TTL (reserved for trial and evaluation tokens), subscription
+_Avoid_: TTL (reserved for Promotional Trial and Evaluation tokens), subscription
 
 ## Relationships
 
@@ -72,7 +72,7 @@ _Avoid_: TTL (reserved for trial and evaluation tokens), subscription
 - An **API Key** belongs to exactly one **Issuer**.
 - An **API Key** may be created or owned by an **Admin**, but it is still a distinct **Actor**.
 - An **Activation Code** can produce a paid **Offline License** during client
-  activation; the trial endpoint produces a trial **Offline License** without an
+  activation; the `/trial` endpoint produces a Promotional Trial **Offline License** without an
   **Activation Code**.
 
 ## Example dialogue

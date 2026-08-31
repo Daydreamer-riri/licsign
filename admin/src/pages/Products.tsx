@@ -84,7 +84,7 @@ function ProductCard({ product }: { product: ProductWithCount }) {
           </span>
           <span className="flex items-center gap-1">
             {product.trial_enabled === 1 && (
-              <Badge variant="secondary">Trial</Badge>
+              <Badge variant="secondary">Promotional Trial</Badge>
             )}
             {product.evaluation_enabled === 1 && (
               <Badge variant="secondary">Evaluation</Badge>
@@ -118,7 +118,7 @@ export default function ProductsPage({ loaderData }: Route.ComponentProps) {
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <StatTile label="Products" value={products.length} />
         <StatTile label="Licenses" value={totalLicenses} />
-        <StatTile label="Trials Enabled" value={trialCount} />
+        <StatTile label="Promotional Trials Enabled" value={trialCount} />
         <StatTile label="Evaluations" value={stats.evaluation_count} />
       </div>
 

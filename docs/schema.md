@@ -237,30 +237,30 @@ Indexes:
 ## trial_activations
 
 Tracks devices that have requested a **Promotional Trial** license under a product.
-Independent from `activations` because trial tokens are not backed by a `licenses` row.
+Independent from `activations` because Promotional Trial tokens are not backed by a `licenses` row.
 
 | Column | Type | Constraints | Description |
 |--------|------|-------------|-------------|
 | id | TEXT | PRIMARY KEY | Internal identifier |
 | issuer_id | TEXT | NOT NULL, FK → issuers(id) ON DELETE CASCADE | Owning issuer (denormalized from product for fast filtering) |
-| product_id | TEXT | NOT NULL, FK → products(id) ON DELETE CASCADE | Product the trial was issued for |
+| product_id | TEXT | NOT NULL, FK → products(id) ON DELETE CASCADE | Product the Promotional Trial was issued for |
 | machine_hash | TEXT | NOT NULL | SHA-256 hex digest of client hardware identifiers |
 | device_label | TEXT | nullable | User-provided name |
-| client_version | TEXT | nullable | App version at first trial |
+| client_version | TEXT | nullable | App version at first Promotional Trial issuance |
 | platform | TEXT | nullable | Client platform (e.g. "android-tv") |
-| first_seen_at | TEXT | NOT NULL | First trial issuance for this device under this product |
-| last_seen_at | TEXT | NOT NULL | Most recent trial issuance |
+| first_seen_at | TEXT | NOT NULL | First Promotional Trial issuance for this device under this product |
+| last_seen_at | TEXT | NOT NULL | Most recent Promotional Trial issuance |
 | last_token_expires_at | TEXT | NOT NULL | `issued_at + product.trial_token_ttl_seconds` of the most recent token |
-| token_count | INTEGER | NOT NULL, DEFAULT 1 | Total trial tokens issued to this device (incremented on every renewal) |
+| token_count | INTEGER | NOT NULL, DEFAULT 1 | Total Promotional Trial tokens issued to this device (incremented on every renewal) |
 
 Constraints:
 
-- UNIQUE (product_id, machine_hash) — one trial activation row per device per product
+- UNIQUE (product_id, machine_hash) — one Promotional Trial activation row per device per product
 
 Indexes:
 
 - `idx_trial_activations_issuer_id` — list trials by issuer
-- `idx_trial_activations_product_id` — list trials by product (count trial users, etc.)
+- `idx_trial_activations_product_id` — list Promotional Trials by product (count Promotional Trial users, etc.)
 - `idx_trial_activations_machine_hash` — lookup a device across products
 
 ## evaluation_activations

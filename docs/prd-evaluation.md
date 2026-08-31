@@ -2,7 +2,7 @@
 
 ## Problem Statement
 
-A potential customer wants to try a product before purchasing. The existing Promotional Trial mechanism is an operator-controlled, time-windowed "free for all" event — useful for marketing campaigns, but not as a standing offer. There is no way for a new device to get a free, time-limited assessment of a product on its own, at any time, without an Activation Code and without requiring the Issuer to open a trial window.
+A potential customer wants to try a product before purchasing. The existing Promotional Trial mechanism is an Admin-controlled, time-windowed "free for all" event — useful for marketing campaigns, but not as a standing offer. There is no way for a new device to get a free, time-limited assessment of a product on its own, at any time, without an Activation Code and without requiring the Issuer to open a Promotional Trial window.
 
 Without this, the only path to using a product is to purchase an Activation Code first. That is a hard ask for a product the customer has never seen.
 
@@ -10,27 +10,27 @@ Without this, the only path to using a product is to purchase an Activation Code
 
 Add an **Evaluation** — a per-device, one-shot free assessment period that is always-on (no window), configured per-product by the Issuer. A device calls `POST /api/client/evaluate` and receives a signed Offline License with a fixed TTL. The expiry is anchored to the first issuance and never moves — the device cannot renew or extend it. Once the evaluation token expires, that device has permanently used its one evaluation opportunity for that product. The device is then expected to purchase an Activation Code if it wants to continue using the product.
 
-Evaluation is fully independent from the existing Promotional Trial and from paid activation. A device may hold an evaluation token and a promotional trial token simultaneously. A device that has completed (or never used) its evaluation may still activate with an Activation Code.
+Evaluation is fully independent from the existing Promotional Trial and from paid activation. A device may hold an Evaluation token and a Promotional Trial token simultaneously. A device that has completed (or never used) its evaluation may still activate with an Activation Code.
 
 ## User Stories
 
 1. As a potential customer, I want to try a product for a few days before purchasing, so that I can decide whether it is worth buying.
-2. As a TV owner, I want my evaluation to start the moment I first open the app, so that I do not have to do anything special to begin the trial.
+2. As a TV owner, I want my Evaluation to start the moment I first open the app, so that I do not have to do anything special to begin the assessment.
 3. As a TV owner, I want my evaluation token to last for a fixed number of days, so that I know exactly how long I have to evaluate the product.
 4. As a TV owner, I want my evaluation to not renew or extend, so that the countdown is honest and predictable.
 5. As a TV owner, I want the evaluation to work without an Activation Code, so that I can try the product before committing to a purchase.
 6. As a TV owner who already used and expired my evaluation, I want to still be able to purchase an Activation Code and activate normally, so that evaluation is a stepping stone, not a dead end.
-7. As a TV owner, I want the evaluation to not affect my ability to use a promotional trial on the same product, so that the two offers do not interfere with each other.
+7. As a TV owner, I want the Evaluation to not affect my ability to use a Promotional Trial on the same product, so that the two offers do not interfere with each other.
 8. As a client app, I want a `POST /api/client/evaluate` endpoint that takes `product_code` and `machine_hash`, so that I can request an evaluation with minimal information.
-9. As a client app, I want the evaluation response to have the same shape as the activate and trial responses, so that I can reuse my existing token storage and local verification path.
-10. As a client app, I want the signed token to carry `kind: "evaluation"`, so that I can distinguish it from paid licenses and promotional trial tokens in local verification.
+9. As a client app, I want the Evaluation response to have the same shape as the activate and Promotional Trial responses, so that I can reuse my existing token storage and local verification path.
+10. As a client app, I want the signed token to carry `kind: "evaluation"`, so that I can distinguish it from paid licenses and Promotional Trial tokens in local verification.
 11. As a client app, I want a stable, distinct error code when evaluation is not available for a product, so that I can show a clear message to the user.
 12. As a client app, I want a stable, distinct error code when a device has already used its evaluation and the token has expired, so that I can prompt the user to purchase.
 13. As a client app, when I call `/evaluate` for a device that already has a non-expired evaluation token, I want to receive a fresh signed token with the same anchored expiry, so that I can recover from lost local storage without extending the evaluation window.
 14. As a client app, I want the anchored expiry to be `first_issued_at + ttl_days`, so that the evaluation window is fixed regardless of how many times I call the endpoint.
 15. As a client app, I want `evaluation_token_ttl_days` to be communicated in the integration config, so that I know how long the evaluation will last before making the request.
 16. As an Issuer, I want to enable or disable evaluation per product, so that I control which products offer a free assessment.
-17. As an Issuer, I want to set the evaluation duration in whole days per product, so that I can offer different trial lengths for different products (e.g. 3 days for a simple app, 7 days for a complex one).
+17. As an Issuer, I want to set the Evaluation duration in whole days per product, so that I can offer different Evaluation lengths for different products (e.g. 3 days for a simple app, 7 days for a complex one).
 18. As an Issuer, I want the evaluation to always be available when enabled — no time window to configure — so that I do not have to manage promotional campaigns for a standing offer.
 19. As an Issuer, I want disabling evaluation to not invalidate tokens already issued, so that the offline-invalidation model stays consistent with paid licenses and promotional trials.
 20. As an Issuer, I want evaluation to not check product `status`, only `evaluation_enabled`, so that I control the two independently (e.g. I can archive a product while its existing evaluations naturally expire).
@@ -40,7 +40,7 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 24. As an Issuer, I want evaluation to never create or modify a paid activation, so that evaluation and paid licensing remain fully independent data paths.
 25. As an Issuer, I want a device with an active paid license to still be able to call `/evaluate` without being rejected, so that the server does not cross-check independent mechanisms.
 26. As an Issuer, I want evaluation to not participate in restore, so that restore remains scoped to paid license recovery.
-27. As a maintainer, I want the evaluation business logic to live in its own service module, so that its behavior can be unit-tested in isolation from trial and activation.
+27. As a maintainer, I want the Evaluation business logic to live in its own service module, so that its behavior can be unit-tested in isolation from Promotional Trial and activation.
 28. As a maintainer, I want the evaluation request schema to be validated like other client schemas, so that malformed input is rejected before any database access.
 29. As an integrator, I want `docs/api.md` and the client-integration guides to document the evaluation endpoint, so that client teams can implement the evaluation flow correctly.
 30. As an integrator, I want the docs to clearly distinguish Evaluation from Promotional Trial, so that I do not confuse the two mechanisms.
@@ -51,12 +51,12 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 
 - Add `POST /api/client/evaluate` to the client route module.
 - Request body: `{ product_code, machine_hash, client_version?, platform? }` — same optional device metadata as `/trial`, no Activation Code required.
-- Success response: `200` with the existing `SignedLicenseResponse` shape (`license`, `signature`, `token`) — identical to activate and trial responses, so clients reuse storage and verification unchanged.
+- Success response: `200` with the existing `SignedLicenseResponse` shape (`license`, `signature`, `token`) — identical to activate and Promotional Trial responses, so clients reuse storage and verification unchanged.
 - Token payload carries `kind: "evaluation"` (new variant of `OfflineLicenseKind`), `license_id: null`, `max_devices: 1`.
 
 ### Evaluation service (deep module)
 
-- Evaluation business logic lives in its own service module (`evaluation`), separate from the trial and activation services, with a single entry point `issueEvaluation(env, body)`.
+- Evaluation business logic lives in its own service module (`evaluation`), separate from the Promotional Trial and activation services, with a single entry point `issueEvaluation(env, body)`.
 - The module encapsulates: schema parse → product lookup → evaluation-config validation → expiry check (existing record or new) → audit log → signed-license issuance. Its interface is one function in, one `SignedLicenseResponse` (or `ApiError`) out — testable in isolation.
 - Evaluation reuses the existing signed-license issuance path; it does not introduce a second token format.
 
@@ -89,11 +89,11 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 
 - Add `evaluation_enabled` (boolean, optional) and `evaluation_token_ttl_days` (positive integer, optional, nullable) to both `createProductSchema` and `updateProductSchema` in the shared schemas module.
 - `evaluation_token_ttl_days` is a positive integer with no arbitrary product-policy cap beyond `z.number().int().min(1)`; the product service rejects values whose computed expiry falls outside the platform's supported ISO 8601 date range.
-- No mutual-exclusivity constraint with the existing trial fields — a product can have both Promotional Trial and Evaluation configured simultaneously.
+- No mutual-exclusivity constraint with the existing Promotional Trial fields — a product can have both Promotional Trial and Evaluation configured simultaneously.
 
 ### Evaluation configuration validation
 
-- A helper function (analogous to `ensureTrialIsActive` in the trial service) checks:
+- A helper function (analogous to `ensureTrialIsActive` in the Promotional Trial service) checks:
   1. `evaluation_enabled === 1` → else `EVALUATION_INACTIVE`
   2. `evaluation_token_ttl_days !== null` → else `EVALUATION_INACTIVE`
 - Product `status` is **not** checked — evaluation only cares about its own enabled flag.
@@ -129,13 +129,13 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 ### Independence from other mechanisms
 
 - Evaluation does not check `activations` — a device with a paid license is not rejected from evaluation.
-- Evaluation does not check `trial_activations` — a device with a promotional trial token is not rejected from evaluation.
+- Evaluation does not check `trial_activations` — a device with a Promotional Trial token is not rejected from Evaluation.
 - Restore does not check `evaluation_activations` — evaluation tokens are not restorable.
 - Evaluation is not added to the Compatibility API.
 
 ## Testing Decisions
 
-A good test asserts **external behavior** — the response, the error code, the audit record, the anchored expiry value — not the internal call sequence. Tests drive the service through its public entry point with an in-memory fake D1, the same approach already used for the activation and trial services.
+A good test asserts **external behavior** — the response, the error code, the audit record, the anchored expiry value — not the internal call sequence. Tests drive the service through its public entry point with an in-memory fake D1, the same approach already used for the activation and Promotional Trial services.
 
 Modules under test:
 
@@ -147,19 +147,19 @@ Modules under test:
 ## Out of Scope
 
 - **Evaluation management Admin API** (list, reset, export evaluation records). V1 only adds product-level configuration and dashboard count. Management endpoints can be added later if customer-support needs arise.
-- **Rate limiting on the evaluate endpoint.** Same rationale as the existing trial endpoint — if token harvesting becomes a problem, add per-machine_hash rate limiting later.
+- **Rate limiting on the evaluate endpoint.** Same rationale as the existing `/trial` endpoint — if token harvesting becomes a problem, add per-machine_hash rate limiting later.
 - **Evaluation recovery through `/evaluate`.** Evaluation does not participate in the paid `/restore` endpoint. If local storage is lost, calling `/evaluate` again during the active window returns a freshly signed token with the original anchored expiry; after expiry it returns `EVALUATION_EXPIRED`.
-- **Trial-to-paid or evaluation-to-paid conversion path.** Evaluation and paid activation are fully independent; there is no linkage or discount mechanism.
+- **Evaluation-to-paid conversion path.** Evaluation and paid activation are fully independent; there is no linkage or discount mechanism.
 - **Instant offline invalidation of evaluation tokens.** Disabling evaluation on a product only stops new issuance; existing tokens remain valid until their anchored expiry, consistent with the offline-invalidation model.
 - **Multi-issuer evaluation behavior.** Evaluation respects existing `issuer_id` boundaries through the product lookup but adds no new multi-issuer surface.
-- **Promotional Trial changes.** The existing trial mechanism, table, endpoint, and behavior are untouched.
+- **Promotional Trial changes.** The existing Promotional Trial mechanism, table, endpoint, and behavior are untouched.
 
 ## Further Notes
 
 **Why days, not seconds.** Evaluation durations are human-facing ("try for 7 days"). Using days as the unit avoids Admin errors from typing `604800` instead of `7`, and matches the granularity of the use case. Seconds remain the internal representation for expiry calculation.
 
-**No JWS storage required.** Because each call signs a new token (with fresh `issued_at`) but an anchored `expires_at`, the server does not need to store or replay the original JWS. The `evaluation_activations` row stores only `first_issued_at` and `expires_at` — the token is re-derived on every call. This keeps the storage model consistent with how paid activation and trial issuance work.
+**No JWS storage required.** Because each call signs a new token (with fresh `issued_at`) but an anchored `expires_at`, the server does not need to store or replay the original JWS. The `evaluation_activations` row stores only `first_issued_at` and `expires_at` — the token is re-derived on every call. This keeps the storage model consistent with how paid activation and Promotional Trial issuance work.
 
 **Product status is not checked.** This is a deliberate departure from how paid activation and restore behave. The rationale: evaluation is controlled solely by `evaluation_enabled`. If an Admin archives a product, they may still want existing evaluations to run their course. If they want to stop evaluation, they disable it explicitly. The two controls are independent.
 
-**Terminology.** The existing term "Trial" in this codebase now refers specifically to **Promotional Trial** — a time-windowed, all-devices offer. **Evaluation** is the new term for the per-device, one-shot assessment. The CONTEXT.md glossary has been updated to reflect this distinction. Client-facing error codes use the `EVALUATION_` prefix to avoid ambiguity with `TRIAL_INACTIVE`.
+**Terminology.** The existing `"trial"` API and token discriminator in this codebase refer specifically to **Promotional Trial** — a time-windowed, all-devices offer. **Evaluation** is the new term for the per-device, one-shot assessment. The CONTEXT.md glossary has been updated to reflect this distinction. Client-facing error codes use the `EVALUATION_` prefix to avoid ambiguity with `TRIAL_INACTIVE`.

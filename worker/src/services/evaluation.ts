@@ -31,6 +31,24 @@ async function rejectExpired(
   );
 }
 
+async function requireActiveExpiry(
+  env: Env,
+  product: ProductRow,
+  machineHash: string,
+  expiresAt: string,
+  platform: string | null,
+  now: number,
+): Promise<string> {
+  const expiresAtMs = Date.parse(expiresAt);
+  if (Number.isNaN(expiresAtMs)) {
+    throw new ApiError<ClientActivationError>(500, "SERVER_ERROR", "Evaluation record has invalid expiry");
+  }
+  if (now >= expiresAtMs) {
+    await rejectExpired(env, product, machineHash, expiresAt, platform);
+  }
+  return expiresAt;
+}
+
 export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLicenseResponse> {
   const input = evaluateRequestSchema.parse(body);
 
@@ -50,20 +68,14 @@ export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLi
   let firstIssued: boolean;
 
   if (existing) {
-    const expiresAtMs = Date.parse(existing.expires_at);
-    if (isNaN(expiresAtMs)) {
-      throw new ApiError<ClientActivationError>(500, "SERVER_ERROR", "Evaluation record has invalid expiry");
-    }
-    if (now >= expiresAtMs) {
-      return rejectExpired(
-        env,
-        product,
-        input.machine_hash,
-        existing.expires_at,
-        input.platform ?? null,
-      );
-    }
-    expiresAt = existing.expires_at;
+    expiresAt = await requireActiveExpiry(
+      env,
+      product,
+      input.machine_hash,
+      existing.expires_at,
+      input.platform ?? null,
+      now,
+    );
     firstIssued = false;
   } else {
     const expiresAtDate = new Date(now + product.evaluation_token_ttl_days * 86400_000);
@@ -91,20 +103,14 @@ export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLi
         if (!race) {
           throw error;
         }
-        const racedExpiresAtMs = Date.parse(race.expires_at);
-        if (isNaN(racedExpiresAtMs)) {
-          throw new ApiError<ClientActivationError>(500, "SERVER_ERROR", "Evaluation record has invalid expiry");
-        }
-        if (now >= racedExpiresAtMs) {
-          return rejectExpired(
-            env,
-            product,
-            input.machine_hash,
-            race.expires_at,
-            input.platform ?? null,
-          );
-        }
-        expiresAt = race.expires_at;
+        expiresAt = await requireActiveExpiry(
+          env,
+          product,
+          input.machine_hash,
+          race.expires_at,
+          input.platform ?? null,
+          now,
+        );
         firstIssued = false;
       } else {
         throw error;

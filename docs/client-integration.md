@@ -30,7 +30,7 @@ any code — they explain why the flow looks the way it does.
 
 There is also a **Promotional Trial** path (`POST /api/client/trial`) that issues a
 short-lived Offline License **without** an Activation Code, when the product has
-an open trial window.
+an open Promotional Trial window.
 
 There is also an **Evaluation** path (`POST /api/client/evaluate`) that issues a
 per-device, one-shot Offline License **without** an Activation Code, when the
@@ -58,7 +58,7 @@ This guide uses the project's canonical vocabulary from
 
 ## 2. Prerequisites
 
-Before writing the client, obtain the following from the Licsign operator. None
+Before writing the client, obtain the following from the Licsign Admin. None
 of these can be discovered at runtime — they are integration-time inputs.
 
 | Input | Description |
@@ -67,10 +67,10 @@ of these can be discovered at runtime — they are integration-time inputs.
 | **`product_code`** | The product this client activates against, e.g. `flow`. A short slug matching `^[A-Za-z0-9][A-Za-z0-9_-]*$`. |
 | **Verification public key(s)** | One ES256 (P-256) public key **per signing key id (`kid`)**. You need the current key and every older key whose tokens must still verify. See §3.3. |
 | **Expected `issuer`** | The exact string the client must find in every token's `issuer` field. |
-| **Trial availability** | Whether the product has a Promotional Trial window, so you know whether to implement the trial path. |
+| **Promotional Trial availability** | Whether the product has a Promotional Trial window, so you know whether to implement the `/trial` path. |
 | **Evaluation availability** | Whether the product has Evaluation enabled (`evaluation_enabled: true` in the client-config bundle), and its configured duration (`evaluation_token_ttl_days`), so you know whether to implement the evaluate path and what period to show. |
 
-The operator can export all of the above at once: in the Admin UI, open the
+The Admin can export all of the above at once: in the Admin UI, open the
 product's **Overview** tab and use the **Client Config** button to copy a JSON
 bundle of these values. (Internally it is `GET /api/admin/products/:id/client-config`.)
 The bundle carries only the current signing key — see §3.4 for key rotation.
@@ -132,12 +132,12 @@ mishandle the timestamps. Parse the fields below explicitly.
 |---|---|---|
 | `version` | `1` | Token schema version. Reject anything you do not understand. |
 | `kind` | `"trial"`, `"evaluation"`, or **absent** | Absent (or `"license"`) means a paid license. `"trial"` means a Promotional Trial token. `"evaluation"` means a one-shot Evaluation token. |
-| `license_id` | `string` \| `null` | The backing license id for paid tokens. **`null` for trial and evaluation tokens.** |
+| `license_id` | `string` \| `null` | The backing license id for paid tokens. **`null` for Promotional Trial and Evaluation tokens.** |
 | `product_code` | `string` | Must equal the client's expected `product_code`. |
 | `machine_hash` | `string` | The device this token is bound to. Must equal the client's own `machine_hash`. |
 | `features` | `string[]` | Reserved for future feature flags. Currently always `[]`. |
 | `issued_at` | ISO 8601 UTC | When the token was signed. |
-| `expires_at` | ISO 8601 UTC \| `null` | Expiry. **`null` means the token never expires offline.** Paid tokens inherit the license's expiry, which is often `null`. Trial tokens always have a concrete expiry. |
+| `expires_at` | ISO 8601 UTC \| `null` | Expiry. **`null` means the token never expires offline.** Paid tokens inherit the license's expiry, which is often `null`. Promotional Trial and Evaluation tokens always have a concrete expiry. |
 | `max_devices` | `number` | Seat count of the underlying license/batch. Informational for the client. |
 | `issuer` | `string` | Must equal the expected `issuer` from §2. |
 | `key_id` | `string` | The signing key id. Mirrors the header `kid`. |
@@ -154,7 +154,7 @@ issued tokens keep their old `kid` and must still verify. Therefore:
   is no longer supported.
 
 > **Known gap.** Licsign currently has **no JWKS / `.well-known` endpoint**. The
-> public key(s) are handed off out-of-band by the operator and embedded in the
+> public key(s) are handed off out-of-band by the Admin and embedded in the
 > client at build time. If a remote-key-fetch endpoint is added later, this
 > section will be revised to describe polling it. Until then, treat the embedded
 > `kid` map as the source of truth and plan a client update for any key rotation.
@@ -261,7 +261,7 @@ the license's `max_devices`.
 ### 5.3 `POST /api/client/trial`
 
 Issues a **Promotional Trial** Offline License **without an Activation Code**, when
-the product has an open trial window. This is a time-windowed, all-devices offer
+the product has an open Promotional Trial window. This is a time-windowed, all-devices offer
 controlled by the Admin. See §5.3a for the per-device one-shot **Evaluation**.
 
 **Request:**
@@ -280,12 +280,12 @@ controlled by the Admin. See §5.3a for the per-device one-shot **Evaluation**.
 
 **Response `200`:** identical shape to `activate`. The token's payload differs:
 `kind` is `"trial"`, `license_id` is `null`, and `expires_at` is
-`now + product trial token TTL` (a short, server-configured window).
+`now + product Promotional Trial token TTL` (a short, server-configured window).
 
-**Idempotency:** the trial endpoint is idempotent per `machine_hash`. Repeated
+**Idempotency:** the `/trial` endpoint is idempotent per `machine_hash`. Repeated
 calls re-issue a fresh token and update `last_seen` without consuming any quota.
-Different `machine_hash` values each get their own independent trial. This means
-the correct way to "renew" a trial is simply to call this endpoint again before
+Different `machine_hash` values each get their own independent Promotional Trial. This means
+the correct way to renew a Promotional Trial is simply to call this endpoint again before
 the current token expires.
 
 **Errors:**
@@ -293,11 +293,11 @@ the current token expires.
 | `error` | HTTP | Meaning | Client action |
 |---|---|---|---|
 | `PRODUCT_NOT_FOUND` | 404 | No active product with that `product_code`. | Configuration error — surface it. |
-| `TRIAL_INACTIVE` | 403 | Trial disabled, misconfigured, or the current time is outside the trial window. | The trial path is unavailable; fall back to entering an Activation Code. |
+| `TRIAL_INACTIVE` | 403 | Promotional Trial disabled, misconfigured, or the current time is outside its window. | The Promotional Trial path is unavailable; fall back to entering an Activation Code. |
 | `BAD_REQUEST` | 400 | Request shape invalid. | Fix the request. |
 | `SERVER_ERROR` | 500 | Server fault. | Transient — retry with backoff. |
 
-When the trial window closes, tokens already issued **stay valid offline until
+When the Promotional Trial window closes, tokens already issued **stay valid offline until
 their own `expires_at`**, but the endpoint stops issuing new ones — a renewal
 attempt then returns `TRIAL_INACTIVE`.
 
@@ -342,7 +342,7 @@ but do not extend the window.
 | `error` | HTTP | Meaning | Client action |
 |---|---|---|---|
 | `PRODUCT_NOT_FOUND` | 404 | No product with that `product_code`. | Configuration error — surface it. |
-| `EVALUATION_INACTIVE` | 403 | Evaluation not enabled or `evaluation_token_ttl_days` not set. | Show a "no free trial available" message; fall back to Activation Code. |
+| `EVALUATION_INACTIVE` | 403 | Evaluation not enabled or `evaluation_token_ttl_days` not set. | Show an "Evaluation unavailable" message; fall back to Activation Code. |
 | `EVALUATION_EXPIRED` | 403 | This device has already used its evaluation and the window has closed. | Prompt the user to purchase an Activation Code. |
 | `BAD_REQUEST` | 400 | Request shape invalid. | Fix the request. |
 | `SERVER_ERROR` | 500 | Server fault. | Transient — retry with backoff. |
@@ -481,7 +481,7 @@ offline** — §8 covers optional online re-validation.
                   │                                  │
                   │              expires_at passed   │
                   │◀──── paid ───────────────────────┤
-                  │                                  │ trial
+                  │                                  │ Promotional Trial
                   │                          ┌───────▼────────┐
                   │                          │  TRIAL-RENEW   │
                   │                          │  call /trial   │
@@ -503,7 +503,7 @@ offline** — §8 covers optional online re-validation.
      `machine_hash` mismatch, wrong `product_code`, unknown `version`) → the
      token is foreign or tampered. Discard it and go to *ACQUIRE*.
    - **`expires_at` has passed:**
-     - `kind == "trial"` → go to *TRIAL-RENEW*.
+     - `kind == "trial"` → go to *TRIAL-RENEW* for the Promotional Trial.
      - `kind == "evaluation"` → the one-shot window is over; discard the token
        and prompt for a paid Activation Code. Do not call `/evaluate` again.
      - paid → go to *ACQUIRE* (renewal). If you persisted the Activation Code
@@ -523,17 +523,17 @@ offline** — §8 covers optional online re-validation.
   JWS with the same anchored expiry. On `EVALUATION_EXPIRED`, fall through to
   paid code entry.
 - If the product has a Promotional Trial, you may call `/api/client/trial` for
-  a no-code trial. On `TRIAL_INACTIVE` or `PRODUCT_NOT_FOUND`, fall through to
+  a no-code Promotional Trial. On `TRIAL_INACTIVE` or `PRODUCT_NOT_FOUND`, fall through to
   code entry.
 - Prompt the user for an Activation Code → call `/api/client/activate`.
 - On `200`: store the `token`, go to *LICENSED*.
 - On error: show a message driven by the §5.2 error table.
 
-**TRIAL-RENEW** (expired trial token):
+**TRIAL-RENEW** (expired Promotional Trial token):
 
 - Call `/api/client/trial` again with the same `product_code` + `machine_hash`.
 - `200` → store the fresh token, go to *LICENSED*.
-- `TRIAL_INACTIVE` → the trial window has closed; route the user to *ACQUIRE*
+- `TRIAL_INACTIVE` → the Promotional Trial window has closed; route the user to *ACQUIRE*
   to enter a paid Activation Code.
 
 **Persist the Activation Code.** After a successful paid activation, store the
@@ -592,7 +592,7 @@ Promotional Trial and Evaluation tokens are independent from paid licenses.
 When a user buys a code:
 
 1. Call `POST /api/client/activate` with the new Activation Code.
-2. On `200`, **replace** the stored trial token with the paid token and persist
+2. On `200`, **replace** the stored Promotional Trial token with the paid token and persist
    the Activation Code.
 3. The next launch verifies the paid token; `kind` is now absent, so free-offer
    UI (e.g. an "expires in N days" badge or purchase prompt) is dropped.

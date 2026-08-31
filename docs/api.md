@@ -78,7 +78,7 @@ Marks a machine activation as deactivated, allowing the seat to be reused.
 
 ### `POST /api/client/trial`
 
-Issues a signed **Promotional Trial** license for the requesting machine when the product's trial
+Issues a signed **Promotional Trial** license for the requesting machine when the product's Promotional Trial
 window is active. **No activation code required.**
 
 Request:
@@ -97,20 +97,20 @@ Response shape matches `POST /api/client/activate`, with two differences in the
 `license` payload:
 
 - `kind` is `"trial"` (activation tokens omit this field or set it to `"license"`)
-- `license_id` is `null` (trial tokens are not backed by a `licenses` row)
+- `license_id` is `null` (Promotional Trial tokens are not backed by a `licenses` row)
 - `expires_at` is `now + product.trial_token_ttl_seconds`
 
-The trial endpoint is idempotent for the same `machine_hash`: repeated calls update
+The `/trial` endpoint is idempotent for the same `machine_hash`: repeated calls update
 `last_seen_at` and re-issue a fresh token without consuming any quota. Different
-`machine_hash` values each get their own trial activation row.
+`machine_hash` values each get their own Promotional Trial activation row.
 
 Errors:
 
 - `PRODUCT_NOT_FOUND` — no active product with that `product_code`
-- `TRIAL_INACTIVE` — trial disabled or current time outside the trial window
+- `TRIAL_INACTIVE` — Promotional Trial disabled or current time outside its window
 - `BAD_REQUEST` — request shape invalid
 
-When the trial window closes, previously issued tokens remain valid offline until
+When the Promotional Trial window closes, previously issued tokens remain valid offline until
 their TTL expires, but the endpoint stops issuing new ones. Clients that want to
 continue beyond the window must fall back to `POST /api/client/activate` with a
 purchased activation code.
@@ -275,10 +275,10 @@ The four `trial_*` fields are optional. When `trial_enabled` is `true`, all thre
 of `trial_start_at`, `trial_end_at`, and `trial_token_ttl_seconds` are required;
 `trial_start_at` must be strictly before `trial_end_at`. TTL accepts 60 seconds to
 90 days. `PATCH /api/admin/products/:id` accepts the same fields; toggling
-`trial_enabled` to `false` stops new trial issuance immediately while existing
-trial tokens remain valid offline until their TTL expires.
+`trial_enabled` to `false` stops new Promotional Trial issuance immediately while existing
+Promotional Trial tokens remain valid offline until their TTL expires.
 
-The two `evaluation_*` fields are optional and independent of the trial fields — a
+The two `evaluation_*` fields are optional and independent of the Promotional Trial fields — a
 product can have both configured simultaneously. `evaluation_token_ttl_days` is a
 positive integer (minimum 1) whose resulting expiry must fit the supported ISO
 8601 date range. When `evaluation_enabled` is `true`,
@@ -351,7 +351,7 @@ Returns `product_count`, `license_count`, `evaluation_count`, and
 `recent_activations`. `evaluation_count` is the total number of
 `evaluation_activations` rows for the issuer — i.e. how many distinct devices
 have started an evaluation across all products. Recent activations include paid
-license activations only; trial and evaluation activations are not mixed into
+license activations only; Promotional Trial and Evaluation activations are not mixed into
 this feed.
 
 ### Audit logs

@@ -1,5 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import worker from "../src/index";
 import { issueEvaluation } from "../src/services/evaluation";
+import type { SignedLicenseResponse } from "../../shared/src/types";
 import type { EvaluationActivationRow, ProductRow } from "../src/db/models";
 import type { Env } from "../src/types";
 import { decodeBase64UrlToString } from "../src/utils/base64url";
@@ -67,6 +69,8 @@ class FakeDB {
   products: ProductRow[] = [];
   evaluationActivations: EvaluationActivationRow[] = [];
   auditLogs: AuditLogRow[] = [];
+  paidActivations: string[] = [];
+  trialActivations: string[] = [];
   insertConflictRow: EvaluationActivationRow | null = null;
 
   prepare(sql: string): FakeStatement {
@@ -112,6 +116,55 @@ function makeProduct(overrides: Partial<ProductRow> = {}): ProductRow {
 }
 
 const MACHINE_HASH = "a".repeat(64);
+
+describe("POST /api/client/evaluate", () => {
+  let db: FakeDB;
+
+  beforeEach(() => {
+    db = new FakeDB();
+  });
+
+  it("returns an Evaluation token without touching paid or Promotional Trial activations", async () => {
+    db.products.push(makeProduct());
+    db.paidActivations.push("act_existing");
+    db.trialActivations.push("tra_existing");
+    const env = await makeEnv(db);
+
+    const response = await worker.fetch(
+      new Request("https://licsign.test/api/client/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ product_code: "tv-app", machine_hash: MACHINE_HASH }),
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+    const result = await response.json() as SignedLicenseResponse;
+
+    expect(response.status).toBe(200);
+    expect(result.license.kind).toBe("evaluation");
+    expect(db.paidActivations).toEqual(["act_existing"]);
+    expect(db.trialActivations).toEqual(["tra_existing"]);
+  });
+
+  it("serializes Evaluation errors with their HTTP status", async () => {
+    db.products.push(makeProduct({ evaluation_enabled: 0 }));
+    const env = await makeEnv(db);
+
+    const response = await worker.fetch(
+      new Request("https://licsign.test/api/client/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ product_code: "tv-app", machine_hash: MACHINE_HASH }),
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+
+    expect(response.status).toBe(403);
+    await expect(response.json()).resolves.toMatchObject({ error: "EVALUATION_INACTIVE" });
+  });
+});
 
 describe("issueEvaluation", () => {
   let db: FakeDB;

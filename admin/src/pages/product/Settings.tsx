@@ -128,7 +128,7 @@ export default function ProductSettingsPage() {
           <CardHeader>
             <CardTitle>Product settings</CardTitle>
             <CardDescription>
-              Update product details, trial, and evaluation configuration.
+              Update product details, Promotional Trial, and Evaluation configuration.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -187,9 +187,9 @@ export default function ProductSettingsPage() {
               </Field>
               <Field orientation="horizontal">
                 <FieldContent>
-                  <FieldLabel htmlFor="settings-trial">Trial</FieldLabel>
+                  <FieldLabel htmlFor="settings-trial">Promotional Trial</FieldLabel>
                   <FieldDescription>
-                    Allow time-limited trial tokens for this product.
+                    Allow time-limited Promotional Trial tokens for this product.
                   </FieldDescription>
                 </FieldContent>
                 <Switch
@@ -201,7 +201,7 @@ export default function ProductSettingsPage() {
               {trialEnabled && (
                 <div className="grid gap-4 sm:grid-cols-3">
                   <Field>
-                    <FieldLabel htmlFor="trial-start">Trial start</FieldLabel>
+                    <FieldLabel htmlFor="trial-start">Promotional Trial start</FieldLabel>
                     <Input
                       id="trial-start"
                       type="datetime-local"
@@ -210,7 +210,7 @@ export default function ProductSettingsPage() {
                     />
                   </Field>
                   <Field>
-                    <FieldLabel htmlFor="trial-end">Trial end</FieldLabel>
+                    <FieldLabel htmlFor="trial-end">Promotional Trial end</FieldLabel>
                     <Input
                       id="trial-end"
                       type="datetime-local"
