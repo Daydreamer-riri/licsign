@@ -123,7 +123,7 @@ Licensed products that activation codes belong to.
 | trial_end_at | TEXT | nullable | ISO 8601; required when `trial_enabled = 1`, must be strictly after `trial_start_at` |
 | trial_token_ttl_seconds | INTEGER | nullable | Per-token TTL for Promotional Trial JWS; required when `trial_enabled = 1`; bounded 60s – 90d at the API layer |
 | evaluation_enabled | INTEGER | NOT NULL, DEFAULT 0 | 0/1 toggle for per-device one-shot Evaluation |
-| evaluation_token_ttl_days | INTEGER | nullable | Evaluation window length in whole days; required when `evaluation_enabled = 1`; minimum 1 |
+| evaluation_token_ttl_days | INTEGER | nullable | Evaluation window length in whole days; required when `evaluation_enabled = 1`; minimum 1 and validated against the supported ISO 8601 date range |
 | created_at | TEXT | NOT NULL | ISO 8601 timestamp |
 | updated_at | TEXT | NOT NULL | ISO 8601 timestamp |
 

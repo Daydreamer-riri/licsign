@@ -146,6 +146,7 @@ export interface ClientIntegrationConfig {
   expected_issuer: string;
   trial_enabled: boolean;
   evaluation_enabled: boolean;
+  evaluation_token_ttl_days: number | null;
   signing_keys: SigningKeyEntry[];
 }
 

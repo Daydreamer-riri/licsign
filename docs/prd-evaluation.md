@@ -36,7 +36,7 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 20. As an Issuer, I want evaluation to not check product `status`, only `evaluation_enabled`, so that I control the two independently (e.g. I can archive a product while its existing evaluations naturally expire).
 21. As an Issuer, I want a `client.evaluate` audit log entry for every successful evaluation issuance, so that I can see evaluation activity in audit history.
 22. As an Issuer, I want a `client.evaluate_expired` audit log entry when a device tries to evaluate after its window has closed, so that I can track how many devices hit the paywall.
-23. As an Issuer, I want the dashboard to include an `evaluation_count` per product, so that I can see how many devices have evaluated each product.
+23. As an Issuer, I want the dashboard to include an `evaluation_count`, so that I can see how many devices have evaluated my products.
 24. As an Issuer, I want evaluation to never create or modify a paid activation, so that evaluation and paid licensing remain fully independent data paths.
 25. As an Issuer, I want a device with an active paid license to still be able to call `/evaluate` without being rejected, so that the server does not cross-check independent mechanisms.
 26. As an Issuer, I want evaluation to not participate in restore, so that restore remains scoped to paid license recovery.
@@ -88,7 +88,7 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 ### Product configuration schema
 
 - Add `evaluation_enabled` (boolean, optional) and `evaluation_token_ttl_days` (positive integer, optional, nullable) to both `createProductSchema` and `updateProductSchema` in the shared schemas module.
-- `evaluation_token_ttl_days` is a positive integer with no upper or lower bounds beyond `z.number().int().min(1)`.
+- `evaluation_token_ttl_days` is a positive integer with no arbitrary product-policy cap beyond `z.number().int().min(1)`; the product service rejects values whose computed expiry falls outside the platform's supported ISO 8601 date range.
 - No mutual-exclusivity constraint with the existing trial fields — a product can have both Promotional Trial and Evaluation configured simultaneously.
 
 ### Evaluation configuration validation
@@ -119,12 +119,12 @@ Evaluation is fully independent from the existing Promotional Trial and from pai
 
 ### Dashboard
 
-- Add `evaluation_count` to the dashboard stats response — total count of `evaluation_activations` rows for the Issuer, or per-product if the dashboard is extended to per-product stats.
+- Add `evaluation_count` to the dashboard stats response — total count of `evaluation_activations` rows for the Issuer.
 - Add a `getEvaluationCount` query to the dashboard queries module.
 
 ### Integration config
 
-- Add `evaluation_enabled: boolean` to `ClientIntegrationConfig` so that client integrators know at integration time whether a product offers evaluation.
+- Add `evaluation_enabled: boolean` and `evaluation_token_ttl_days: number | null` to `ClientIntegrationConfig` so that client integrators know at integration time whether a product offers evaluation and how long the evaluation window lasts.
 
 ### Independence from other mechanisms
 
@@ -148,7 +148,7 @@ Modules under test:
 
 - **Evaluation management Admin API** (list, reset, export evaluation records). V1 only adds product-level configuration and dashboard count. Management endpoints can be added later if customer-support needs arise.
 - **Rate limiting on the evaluate endpoint.** Same rationale as the existing trial endpoint — if token harvesting becomes a problem, add per-machine_hash rate limiting later.
-- **Evaluation restore.** Evaluation tokens are not restorable. A device that loses its evaluation token after app data is cleared loses the remainder of the evaluation window. This is acceptable for a free, one-shot assessment.
+- **Evaluation recovery through `/evaluate`.** Evaluation does not participate in the paid `/restore` endpoint. If local storage is lost, calling `/evaluate` again during the active window returns a freshly signed token with the original anchored expiry; after expiry it returns `EVALUATION_EXPIRED`.
 - **Trial-to-paid or evaluation-to-paid conversion path.** Evaluation and paid activation are fully independent; there is no linkage or discount mechanism.
 - **Instant offline invalidation of evaluation tokens.** Disabling evaluation on a product only stops new issuance; existing tokens remain valid until their anchored expiry, consistent with the offline-invalidation model.
 - **Multi-issuer evaluation behavior.** Evaluation respects existing `issuer_id` boundaries through the product lookup but adds no new multi-issuer surface.

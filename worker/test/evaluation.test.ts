@@ -37,6 +37,11 @@ class FakeStatement {
   async run() {
     const sql = this.sql.trim();
     if (sql.startsWith("INSERT INTO evaluation_activations")) {
+      if (this.db.insertConflictRow) {
+        this.db.evaluationActivations.push(this.db.insertConflictRow);
+        this.db.insertConflictRow = null;
+        throw new Error("UNIQUE constraint failed: evaluation_activations.product_id, evaluation_activations.machine_hash");
+      }
       const [id, issuer_id, product_id, machine_hash, first_issued_at, expires_at] =
         this.args as [string, string, string, string, string, string];
       this.db.evaluationActivations.push({ id, issuer_id, product_id, machine_hash, first_issued_at, expires_at });
@@ -62,6 +67,7 @@ class FakeDB {
   products: ProductRow[] = [];
   evaluationActivations: EvaluationActivationRow[] = [];
   auditLogs: AuditLogRow[] = [];
+  insertConflictRow: EvaluationActivationRow | null = null;
 
   prepare(sql: string): FakeStatement {
     return new FakeStatement(sql, this);
@@ -171,6 +177,53 @@ describe("issueEvaluation", () => {
     expect(db.evaluationActivations).toHaveLength(1);
   });
 
+  it("uses the anchored row when a concurrent first issuance wins", async () => {
+    db.products.push(makeProduct());
+    const firstIssuedAt = new Date().toISOString();
+    const expiresAt = new Date(Date.now() + 7 * 86400_000).toISOString();
+    db.insertConflictRow = {
+      id: "eva_race",
+      issuer_id: "iss_test",
+      product_id: "prd_test",
+      machine_hash: MACHINE_HASH,
+      first_issued_at: firstIssuedAt,
+      expires_at: expiresAt,
+    };
+    const env = await makeEnv(db);
+
+    const result = await issueEvaluation(env, {
+      product_code: "tv-app",
+      machine_hash: MACHINE_HASH,
+    });
+
+    expect(result.license.expires_at).toBe(expiresAt);
+    expect(db.evaluationActivations).toHaveLength(1);
+    const details = JSON.parse(db.auditLogs.at(-1)!.details_json!);
+    expect(details.first_issued).toBe(false);
+  });
+
+  it("audits EVALUATION_EXPIRED when a concurrent first issuance is already expired", async () => {
+    db.products.push(makeProduct());
+    const expiresAt = new Date(Date.now() - 1000).toISOString();
+    db.insertConflictRow = {
+      id: "eva_race",
+      issuer_id: "iss_test",
+      product_id: "prd_test",
+      machine_hash: MACHINE_HASH,
+      first_issued_at: new Date(Date.now() - 8 * 86400_000).toISOString(),
+      expires_at: expiresAt,
+    };
+    const env = await makeEnv(db);
+
+    await expect(
+      issueEvaluation(env, { product_code: "tv-app", machine_hash: MACHINE_HASH })
+    ).rejects.toMatchObject({ status: 403, code: "EVALUATION_EXPIRED" });
+
+    const log = db.auditLogs.find((entry) => entry.action === "client.evaluate_expired");
+    expect(log).toBeDefined();
+    expect(JSON.parse(log!.details_json!).expired_at).toBe(expiresAt);
+  });
+
   it("rejects EVALUATION_EXPIRED when now >= stored expires_at", async () => {
     db.products.push(makeProduct());
     const pastExpiry = new Date(Date.now() - 1000).toISOString();
@@ -228,6 +281,16 @@ describe("issueEvaluation", () => {
     await expect(
       issueEvaluation(env, { product_code: "tv-app", machine_hash: MACHINE_HASH })
     ).rejects.toMatchObject({ status: 403, code: "EVALUATION_INACTIVE" });
+  });
+
+  it("returns EVALUATION_INACTIVE instead of crashing for an unrepresentable TTL", async () => {
+    db.products.push(makeProduct({ evaluation_token_ttl_days: Number.MAX_SAFE_INTEGER }));
+    const env = await makeEnv(db);
+
+    await expect(
+      issueEvaluation(env, { product_code: "tv-app", machine_hash: MACHINE_HASH })
+    ).rejects.toMatchObject({ status: 403, code: "EVALUATION_INACTIVE" });
+    expect(db.evaluationActivations).toHaveLength(0);
   });
 
   it("returns PRODUCT_NOT_FOUND for unknown product_code", async () => {

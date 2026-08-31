@@ -30,6 +30,7 @@ export async function buildClientConfig(
     expected_issuer: env.LICENSE_ISSUER,
     trial_enabled: product.trial_enabled === 1,
     evaluation_enabled: product.evaluation_enabled === 1,
+    evaluation_token_ttl_days: product.evaluation_token_ttl_days,
     signing_keys: [
       {
         kid: env.SIGNING_KEY_ID,

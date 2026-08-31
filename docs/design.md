@@ -107,8 +107,9 @@ record rather than a paid License row.
 
 **Why days, not seconds.** Evaluation durations are human-facing ("try for 7
 days"). Using days as the unit avoids Admin mistakes from typing `604800` instead
-of `7`, and matches the natural granularity of the use case. Seconds remain the
-internal representation for expiry calculation.
+of `7`, and matches the natural granularity of the use case. The Admin API also
+rejects values whose computed expiry cannot be represented as an ISO 8601 date.
+Seconds remain the internal representation for expiry calculation.
 
 **Product status is not checked.** Evaluation only cares about `evaluation_enabled`
 — it does not check `products.status`. If an Admin archives a product, existing

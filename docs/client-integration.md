@@ -68,7 +68,7 @@ of these can be discovered at runtime — they are integration-time inputs.
 | **Verification public key(s)** | One ES256 (P-256) public key **per signing key id (`kid`)**. You need the current key and every older key whose tokens must still verify. See §3.3. |
 | **Expected `issuer`** | The exact string the client must find in every token's `issuer` field. |
 | **Trial availability** | Whether the product has a Promotional Trial window, so you know whether to implement the trial path. |
-| **Evaluation availability** | Whether the product has Evaluation enabled (`evaluation_enabled: true` in the client-config bundle), so you know whether to implement the evaluate path. |
+| **Evaluation availability** | Whether the product has Evaluation enabled (`evaluation_enabled: true` in the client-config bundle), and its configured duration (`evaluation_token_ttl_days`), so you know whether to implement the evaluate path and what period to show. |
 
 The operator can export all of the above at once: in the Admin UI, open the
 product's **Overview** tab and use the **Client Config** button to copy a JSON
@@ -451,7 +451,7 @@ discarded.
    - If `expires_at` is non-null, it is **in the future**. If `null`, the token
      does not expire.
 8. If and only if all steps pass, the token is a valid license. Use `kind` to
-   distinguish a paid license from a `trial`.
+distinguish a paid license from a Promotional Trial or Evaluation.
 
 Allow a small clock-skew tolerance (e.g. a few minutes) on the `expires_at`
 check if the device clock is untrusted.
@@ -504,6 +504,8 @@ offline** — §8 covers optional online re-validation.
      token is foreign or tampered. Discard it and go to *ACQUIRE*.
    - **`expires_at` has passed:**
      - `kind == "trial"` → go to *TRIAL-RENEW*.
+     - `kind == "evaluation"` → the one-shot window is over; discard the token
+       and prompt for a paid Activation Code. Do not call `/evaluate` again.
      - paid → go to *ACQUIRE* (renewal). If you persisted the Activation Code
        (recommended, see below), retry `activate` directly instead of
        re-prompting.
@@ -516,9 +518,13 @@ offline** — §8 covers optional online re-validation.
   reinstall) — store the `token` and go to *LICENSED*, no user input needed. On
   `NO_ACTIVATION` (404), fall through to the steps below. This makes recovery
   after a reinstall seamless.
-- If the product has a trial and the user has not consumed it, you may call
-  `/api/client/trial` for a no-code trial. On `TRIAL_INACTIVE` or
-  `PRODUCT_NOT_FOUND`, fall through to code entry.
+- If Evaluation is enabled, call `/api/client/evaluate`. A first-time device
+  starts its one-shot window; a device still inside its window receives a fresh
+  JWS with the same anchored expiry. On `EVALUATION_EXPIRED`, fall through to
+  paid code entry.
+- If the product has a Promotional Trial, you may call `/api/client/trial` for
+  a no-code trial. On `TRIAL_INACTIVE` or `PRODUCT_NOT_FOUND`, fall through to
+  code entry.
 - Prompt the user for an Activation Code → call `/api/client/activate`.
 - On `200`: store the `token`, go to *LICENSED*.
 - On error: show a message driven by the §5.2 error table.
@@ -573,22 +579,26 @@ reuses `activate`, which re-checks license status before re-issuing:
      treat as inconclusive and keep the cached token.
 
 Re-validation is best-effort: a definitive rejection downgrades the device; an
-inconclusive result never does. For trial tokens, "re-validation" is simply the
-normal renewal call to `/api/client/trial`.
+inconclusive result never does. For Promotional Trial tokens, "re-validation"
+is the normal renewal call to `/api/client/trial`. Evaluation tokens are not
+periodically revalidated and never renew; an expired Evaluation transitions to
+paid activation.
 
 ---
 
-## 9. Trial-to-paid transition
+## 9. Free-offer-to-paid transition
 
-A trial token and a paid license are independent. When a trial user buys a code:
+Promotional Trial and Evaluation tokens are independent from paid licenses.
+When a user buys a code:
 
 1. Call `POST /api/client/activate` with the new Activation Code.
 2. On `200`, **replace** the stored trial token with the paid token and persist
    the Activation Code.
-3. The next launch verifies the paid token; `kind` is now absent, so trial UI
-   (e.g. an "expires in N days" badge or purchase prompt) is dropped.
+3. The next launch verifies the paid token; `kind` is now absent, so free-offer
+   UI (e.g. an "expires in N days" badge or purchase prompt) is dropped.
 
-You do not need to deactivate the trial — trial activations carry no seat quota.
+You do not need to deactivate a Promotional Trial or Evaluation — neither uses
+a paid seat quota.
 
 ---
 
@@ -597,7 +607,7 @@ You do not need to deactivate the trial — trial activations carry no seat quot
 - [ ] Base URL, `product_code`, and expected `issuer` are configured.
 - [ ] Embedded `kid` → public-key map contains every currently-valid signing key.
 - [ ] `machine_hash` derivation is stable across updates and restarts.
-- [ ] `activate` / `restore` / `trial` / `deactivate` requests match §5;
+- [ ] `activate` / `restore` / `trial` / `evaluate` / `deactivate` requests match §5;
       `Content-Type` is `application/json`; no `Authorization` header is sent.
 - [ ] `machine_hash` is reinstall-stable, and the launch flow tries `restore`
       before prompting for an Activation Code (§7).
@@ -636,12 +646,13 @@ verification as described above.
 |---|---|
 | `INVALID_CODE` | `activate`, `deactivate` |
 | `PRODUCT_MISMATCH` | `activate`, `deactivate`, `restore` |
-| `PRODUCT_NOT_FOUND` | `trial`, `restore` |
+| `PRODUCT_NOT_FOUND` | `trial`, `evaluate`, `restore` |
 | `NO_ACTIVATION` | `restore` |
 | `LICENSE_DISABLED` | `activate`, `restore` |
 | `LICENSE_REVOKED` | `activate`, `restore` |
 | `LICENSE_EXPIRED` | `activate`, `restore` |
 | `DEVICE_LIMIT_REACHED` | `activate` |
 | `TRIAL_INACTIVE` | `trial` |
+| `EVALUATION_INACTIVE` / `EVALUATION_EXPIRED` | `evaluate` |
 | `BAD_REQUEST` | all |
 | `SERVER_ERROR` | all |

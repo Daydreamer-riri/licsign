@@ -238,6 +238,7 @@ ready to hand off as JSON:
   "expected_issuer": "licsign",
   "trial_enabled": true,
   "evaluation_enabled": false,
+  "evaluation_token_ttl_days": null,
   "signing_keys": [
     {
       "kid": "kid_xxx",
@@ -279,7 +280,8 @@ trial tokens remain valid offline until their TTL expires.
 
 The two `evaluation_*` fields are optional and independent of the trial fields — a
 product can have both configured simultaneously. `evaluation_token_ttl_days` is a
-positive integer (minimum 1). When `evaluation_enabled` is `true`,
+positive integer (minimum 1) whose resulting expiry must fit the supported ISO
+8601 date range. When `evaluation_enabled` is `true`,
 `evaluation_token_ttl_days` must be set. Toggling `evaluation_enabled` to `false`
 stops new evaluation issuance; existing evaluation tokens remain valid until their
 anchored expiry.

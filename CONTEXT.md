@@ -39,10 +39,11 @@ window. Distinct from **Evaluation**.
 _Avoid_: Trial (ambiguous — always qualify as Promotional or Evaluation)
 
 **Evaluation**:
-A per-device, one-shot free assessment period for a **Product**. A device
-gets exactly one evaluation token of a fixed TTL; once issued, it cannot be
-renewed or re-issued. The evaluation offer is always-on (not time-windowed)
-and is configured per-product by the **Admin**. Distinct from **Promotional Trial**.
+A per-device, one-shot free assessment period for a **Product**. A device gets one
+fixed evaluation window. During that window, the server may re-sign the JWS with
+a fresh issue time and the same anchored expiry; the window itself never renews
+or extends. The evaluation offer is always-on (not time-windowed) and is
+configured per-product by the **Admin**. Distinct from **Promotional Trial**.
 _Avoid_: Free trial, trial (ambiguous)
 
 **Absolute Expiry**:
@@ -58,8 +59,8 @@ absolute cutoff only exists after the **Activation Code** is redeemed.
 A license uses either **Absolute Expiry** or **Activation-Relative Validity**,
 never both.
 Distinct from trial and evaluation token TTL: trial TTL is per-token and
-per-device under a **Product** and is re-issued on every trial call; evaluation
-TTL is one-shot per device; **Activation-Relative Validity** is per-License,
+per-device under a **Product** and is re-issued on every trial call; an
+evaluation JWS may be re-signed during its one-shot, anchored window; **Activation-Relative Validity** is per-License,
 anchored to the License's first activation, and never re-anchors.
 _Avoid_: TTL (reserved for trial and evaluation tokens), subscription
 

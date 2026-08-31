@@ -54,6 +54,11 @@ function resolveTrialFields(
   return { enabled, start_at, end_at, ttl_seconds };
 }
 
+function evaluationExpiry(ttlDays: number, now: number): string | null {
+  const date = new Date(now + ttlDays * 86400_000);
+  return Number.isNaN(date.getTime()) ? null : date.toISOString();
+}
+
 function resolveEvaluationFields(
   input: { evaluation_enabled?: boolean; evaluation_token_ttl_days?: number | null },
   existing?: ProductRow
@@ -66,6 +71,13 @@ function resolveEvaluationFields(
       400,
       "EVALUATION_CONFIG_INCOMPLETE",
       "evaluation_enabled requires evaluation_token_ttl_days"
+    );
+  }
+  if (ttl_days !== null && evaluationExpiry(ttl_days, Date.now()) === null) {
+    throw new ApiError(
+      400,
+      "EVALUATION_CONFIG_INVALID",
+      "evaluation_token_ttl_days exceeds the supported date range"
     );
   }
 

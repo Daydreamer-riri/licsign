@@ -74,7 +74,14 @@ describe("buildClientConfig", () => {
   it("bundles every integration input with a public-only signing key", async () => {
     const env = await makeEnv();
     const db = fakeDb([
-      makeProduct({ id: "prd_a", issuer_id: "iss_1", code: "flow", trial_enabled: 1 }),
+      makeProduct({
+        id: "prd_a",
+        issuer_id: "iss_1",
+        code: "flow",
+        trial_enabled: 1,
+        evaluation_enabled: 1,
+        evaluation_token_ttl_days: 7,
+      }),
     ]);
 
     const config = await buildClientConfig(
@@ -89,6 +96,8 @@ describe("buildClientConfig", () => {
     expect(config.product_code).toBe("flow");
     expect(config.expected_issuer).toBe("licsign");
     expect(config.trial_enabled).toBe(true);
+    expect(config.evaluation_enabled).toBe(true);
+    expect(config.evaluation_token_ttl_days).toBe(7);
     expect(config.signing_keys).toHaveLength(1);
 
     const [key] = config.signing_keys;

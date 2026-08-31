@@ -56,6 +56,14 @@ export default function ProductSettingsPage() {
       ? String(product.trial_token_ttl_seconds)
       : "",
   );
+  const [evaluationEnabled, setEvaluationEnabled] = useState(
+    product.evaluation_enabled === 1,
+  );
+  const [evaluationTtl, setEvaluationTtl] = useState(
+    product.evaluation_token_ttl_days
+      ? String(product.evaluation_token_ttl_days)
+      : "",
+  );
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [archivePending, setArchivePending] = useState(false);
@@ -73,6 +81,7 @@ export default function ProductSettingsPage() {
         description: description.trim(),
         default_max_devices: Number(maxDevices) || 1,
         trial_enabled: trialEnabled,
+        evaluation_enabled: evaluationEnabled,
       };
       if (trialEnabled) {
         body.trial_start_at = trialStart
@@ -80,6 +89,11 @@ export default function ProductSettingsPage() {
           : null;
         body.trial_end_at = trialEnd ? new Date(trialEnd).toISOString() : null;
         body.trial_token_ttl_seconds = trialTtl ? Number(trialTtl) : null;
+      }
+      if (evaluationEnabled) {
+        body.evaluation_token_ttl_days = evaluationTtl
+          ? Number(evaluationTtl)
+          : null;
       }
       await api.patch(`/api/admin/products/${product.id}`, body);
       toast.success("Product updated");
@@ -114,7 +128,7 @@ export default function ProductSettingsPage() {
           <CardHeader>
             <CardTitle>Product settings</CardTitle>
             <CardDescription>
-              Update product details and trial configuration.
+              Update product details, trial, and evaluation configuration.
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
@@ -215,6 +229,41 @@ export default function ProductSettingsPage() {
                     />
                   </Field>
                 </div>
+              )}
+              <Field orientation="horizontal">
+                <FieldContent>
+                  <FieldLabel htmlFor="settings-evaluation">
+                    Evaluation
+                  </FieldLabel>
+                  <FieldDescription>
+                    Allow a per-device one-shot assessment for this product.
+                  </FieldDescription>
+                </FieldContent>
+                <Switch
+                  id="settings-evaluation"
+                  checked={evaluationEnabled}
+                  onCheckedChange={setEvaluationEnabled}
+                />
+              </Field>
+              {evaluationEnabled && (
+                <Field>
+                  <FieldLabel htmlFor="evaluation-ttl">
+                    Evaluation duration (days)
+                  </FieldLabel>
+                  <Input
+                    id="evaluation-ttl"
+                    type="number"
+                    inputMode="numeric"
+                    min={1}
+                    value={evaluationTtl}
+                    onChange={(e) => setEvaluationTtl(e.target.value)}
+                    className="max-w-32"
+                  />
+                  <FieldDescription>
+                    The window starts on first evaluation and does not extend on
+                    later calls.
+                  </FieldDescription>
+                </Field>
               )}
             </FieldGroup>
           </CardContent>

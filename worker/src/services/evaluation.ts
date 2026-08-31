@@ -1,5 +1,6 @@
 import { evaluateRequestSchema } from "../../../shared/src/schemas";
 import type { ClientActivationError, SignedLicenseResponse } from "../../../shared/src/types";
+import type { ProductRow } from "../db/models";
 import type { Env } from "../types";
 import * as productQueries from "../db/queries/products";
 import * as evaluationQueries from "../db/queries/evaluations";
@@ -7,6 +8,28 @@ import { issueSignedLicense } from "./issuance";
 import { ApiError } from "../utils/http";
 import { createId } from "../utils/id";
 import { writeAuditLog } from "./audit";
+
+async function rejectExpired(
+  env: Env,
+  product: ProductRow,
+  machineHash: string,
+  expiresAt: string,
+  platform: string | null,
+): Promise<never> {
+  await writeAuditLog(env.DB, {
+    issuerId: product.issuer_id,
+    actorType: "client",
+    action: "client.evaluate_expired",
+    targetType: "product",
+    targetId: product.id,
+    details: { machine_hash: machineHash, expired_at: expiresAt, platform },
+  });
+  throw new ApiError<ClientActivationError>(
+    403,
+    "EVALUATION_EXPIRED",
+    "Evaluation period has expired for this device",
+  );
+}
 
 export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLicenseResponse> {
   const input = evaluateRequestSchema.parse(body);
@@ -32,24 +55,26 @@ export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLi
       throw new ApiError<ClientActivationError>(500, "SERVER_ERROR", "Evaluation record has invalid expiry");
     }
     if (now >= expiresAtMs) {
-      await writeAuditLog(env.DB, {
-        issuerId: product.issuer_id,
-        actorType: "client",
-        action: "client.evaluate_expired",
-        targetType: "product",
-        targetId: product.id,
-        details: {
-          machine_hash: input.machine_hash,
-          expired_at: existing.expires_at,
-          platform: input.platform ?? null,
-        },
-      });
-      throw new ApiError<ClientActivationError>(403, "EVALUATION_EXPIRED", "Evaluation period has expired for this device");
+      return rejectExpired(
+        env,
+        product,
+        input.machine_hash,
+        existing.expires_at,
+        input.platform ?? null,
+      );
     }
     expiresAt = existing.expires_at;
     firstIssued = false;
   } else {
-    expiresAt = new Date(now + product.evaluation_token_ttl_days * 86400_000).toISOString();
+    const expiresAtDate = new Date(now + product.evaluation_token_ttl_days * 86400_000);
+    if (Number.isNaN(expiresAtDate.getTime())) {
+      throw new ApiError<ClientActivationError>(
+        403,
+        "EVALUATION_INACTIVE",
+        "Evaluation duration is not representable",
+      );
+    }
+    expiresAt = expiresAtDate.toISOString();
     firstIssued = true;
     try {
       await evaluationQueries.create(env.DB, {
@@ -67,8 +92,17 @@ export async function issueEvaluation(env: Env, body: unknown): Promise<SignedLi
           throw error;
         }
         const racedExpiresAtMs = Date.parse(race.expires_at);
-        if (isNaN(racedExpiresAtMs) || now >= racedExpiresAtMs) {
-          throw new ApiError<ClientActivationError>(403, "EVALUATION_EXPIRED", "Evaluation period has expired for this device");
+        if (isNaN(racedExpiresAtMs)) {
+          throw new ApiError<ClientActivationError>(500, "SERVER_ERROR", "Evaluation record has invalid expiry");
+        }
+        if (now >= racedExpiresAtMs) {
+          return rejectExpired(
+            env,
+            product,
+            input.machine_hash,
+            race.expires_at,
+            input.platform ?? null,
+          );
         }
         expiresAt = race.expires_at;
         firstIssued = false;

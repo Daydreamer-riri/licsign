@@ -157,6 +157,20 @@ describe("products service — evaluation fields", () => {
     expect(product.evaluation_enabled).toBe(1);
   });
 
+  it("rejects an evaluation duration outside the supported date range", async () => {
+    await expect(
+      createProduct(db as unknown as D1Database, "iss_test", ACTOR, {
+        code: "tv-app",
+        name: "TV App",
+        evaluation_enabled: true,
+        evaluation_token_ttl_days: Number.MAX_SAFE_INTEGER,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      code: "EVALUATION_CONFIG_INVALID",
+    });
+  });
+
   it("evaluation fields are independent from trial fields", async () => {
     const product = await createProduct(db as unknown as D1Database, "iss_test", ACTOR, {
       code: "tv-app",
