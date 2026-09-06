@@ -34,6 +34,17 @@ export const openApiDocument = {
         }
       }
     },
+    "/api/client/evaluate": {
+      post: {
+        summary: "Issue a per-device one-shot evaluation license without an activation code",
+        responses: {
+          "200": { description: "Signed evaluation license" },
+          "400": { description: "BAD_REQUEST" },
+          "403": { description: "EVALUATION_INACTIVE or EVALUATION_EXPIRED" },
+          "404": { description: "PRODUCT_NOT_FOUND" }
+        }
+      }
+    },
     "/api/admin/products": {
       get: { summary: "List products", responses: { "200": { description: "Products" } } },
       post: { summary: "Create product", responses: { "200": { description: "Product" } } }

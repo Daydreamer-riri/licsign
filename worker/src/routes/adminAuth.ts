@@ -4,7 +4,7 @@ import { z } from "zod";
 import type { AdminContext, Env } from "../types";
 import { login, deleteSession } from "../services/adminAuth";
 import { SESSION_COOKIE_NAME, authenticateAdmin } from "../services/auth";
-import { ApiError } from "../utils/http";
+import { ApiError, parseJsonBody } from "../utils/http";
 
 export const adminAuthRoutes = new Hono<{ Bindings: Env }>();
 
@@ -14,7 +14,7 @@ const loginSchema = z.object({
 });
 
 adminAuthRoutes.post("/login", async (c) => {
-  const body = loginSchema.parse(await c.req.json());
+  const body = loginSchema.parse(await parseJsonBody(c.req));
   const result = await login(c.env.DB, body.email, body.password);
 
   setCookie(c, SESSION_COOKIE_NAME, result.token, {

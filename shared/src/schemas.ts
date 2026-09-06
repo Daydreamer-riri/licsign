@@ -30,12 +30,18 @@ const trialFieldsSchema = {
     .optional()
 };
 
+const evaluationFieldsSchema = {
+  evaluation_enabled: z.boolean().optional(),
+  evaluation_token_ttl_days: z.number().int().min(1).nullable().optional()
+};
+
 export const createProductSchema = z.object({
   code: productCodeSchema,
   name: z.string().min(1).max(160),
   description: z.string().max(2000).optional().default(""),
   default_max_devices: z.number().int().min(1).max(100).optional().default(1),
-  ...trialFieldsSchema
+  ...trialFieldsSchema,
+  ...evaluationFieldsSchema
 });
 
 export const updateProductSchema = createProductSchema
@@ -103,6 +109,13 @@ export const trialRequestSchema = z.object({
   product_code: productCodeSchema,
   machine_hash: machineHashSchema,
   device_label: z.string().max(160).nullable().optional(),
+  client_version: z.string().max(80).nullable().optional(),
+  platform: z.string().max(80).nullable().optional()
+});
+
+export const evaluateRequestSchema = z.object({
+  product_code: productCodeSchema,
+  machine_hash: machineHashSchema,
   client_version: z.string().max(80).nullable().optional(),
   platform: z.string().max(80).nullable().optional()
 });

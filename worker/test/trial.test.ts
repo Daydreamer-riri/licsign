@@ -147,6 +147,8 @@ function makeProduct(overrides: Partial<ProductRow> = {}): ProductRow {
     trial_start_at: new Date(Date.now() - 60_000).toISOString(),
     trial_end_at: new Date(Date.now() + 60 * 60 * 1000).toISOString(),
     trial_token_ttl_seconds: 7 * 24 * 60 * 60,
+    evaluation_enabled: 0,
+    evaluation_token_ttl_days: null,
     created_at: now,
     updated_at: now,
     ...overrides

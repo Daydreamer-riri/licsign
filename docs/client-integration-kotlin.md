@@ -79,7 +79,7 @@ raw `ANDROID_ID`; only the hash leaves the device.
 
 ## 2. Embedding the verification public key(s)
 
-Obtain the ES256 public key(s) as JWKs from the Licsign operator — one per
+Obtain the ES256 public key(s) as JWKs from the Licsign Admin — one per
 signing-key `kid`. Embed them in the client. **There is no JWKS endpoint**; a key
 rotation requires an app update that adds the new key (keep the old ones until
 their tokens expire — see the agnostic guide §3.4).
@@ -100,7 +100,7 @@ fun base64UrlDecode(input: String): ByteArray =
     Base64.decode(input, Base64.URL_SAFE or Base64.NO_PADDING or Base64.NO_WRAP)
 
 object TrustedKeys {
-    // Paste the operator-provided JWK fields here. One entry per kid.
+    // Paste the Admin-provided JWK fields here. One entry per kid.
     // A P-256 public JWK looks like: { "kty":"EC","crv":"P-256","x":"...","y":"...","kid":"..." }
     private val jwks: Map<String, Pair<String, String>> = mapOf(
         // kid                to (x, y)
@@ -146,8 +146,8 @@ import java.util.TimeZone
 
 data class LicensePayload(
     val version: Int,
-    val kind: String?,            // null/"license" = paid, "trial" = trial token
-    val licenseId: String?,       // null for trial tokens
+    val kind: String?,            // null/"license" = paid, "trial" = Promotional Trial, "evaluation" = Evaluation
+    val licenseId: String?,       // null for Promotional Trial and Evaluation tokens
     val productCode: String,
     val machineHash: String,
     val features: List<String>,
@@ -158,6 +158,7 @@ data class LicensePayload(
     val keyId: String,
 ) {
     val isTrial: Boolean get() = kind == "trial"
+    val isEvaluation: Boolean get() = kind == "evaluation"
 
     /** Epoch millis of expires_at, or null when the token never expires. */
     fun expiresAtMillis(): Long? = expiresAt?.let { parseIso8601(it) }
@@ -200,7 +201,8 @@ react correctly:
 
 - **`Valid`** — signature and all identity claims pass, not expired.
 - **`Expired`** — signature and identity pass, but `expires_at` is in the past.
-  The token is *authentic*; it just needs renewal.
+  The token is authentic; paid and Promotional Trial tokens may renew, while an
+  Evaluation must transition to purchase.
 - **`Invalid`** — structural failure, bad signature, untrusted `kid`, or an
   identity mismatch (`machine_hash`, `product_code`, `issuer`). **Discard it.**
 
@@ -365,6 +367,14 @@ class LicenseApi(
             put("platform", platform)
         })
 
+    fun evaluate(machineHash: String): ApiResult =
+        post("/api/client/evaluate", JSONObject().apply {
+            put("product_code", productCode)
+            put("machine_hash", machineHash)
+            put("client_version", clientVersion)
+            put("platform", platform)
+        })
+
     /**
      * Recovers the Offline License for a device that already activated, using
      * only machine_hash — no activation code. Returns Rejected(NO_ACTIVATION)
@@ -450,6 +460,11 @@ class LicenseStore(context: Context) {
         get() = prefs.getLong("revalidated_at", 0L)
         set(value) = prefs.edit().putLong("revalidated_at", value).apply()
 
+    /** Remember that this device's one-shot Evaluation has ended. */
+    var evaluationConsumed: Boolean
+        get() = prefs.getBoolean("evaluation_consumed", false)
+        set(value) = prefs.edit().putBoolean("evaluation_consumed", value).apply()
+
     fun clearToken() = prefs.edit().remove("token").apply()
 }
 ```
@@ -472,7 +487,7 @@ networking calls are blocking — run them off the main thread (coroutine
 sealed interface LicenseState {
     /** A valid license is in force. */
     data class Licensed(val payload: LicensePayload) : LicenseState
-    /** No usable license — prompt the user (activation code, or start a trial). */
+    /** No usable license — prompt for paid activation or an available free offer. */
     object NeedsActivation : LicenseState
     /** Token expired and the device is offline — cannot renew right now. */
     object ExpiredOffline : LicenseState
@@ -484,6 +499,7 @@ class LicenseManager(
     private val store: LicenseStore,
     private val machineHash: String,
     private val deviceLabel: String?,
+    private val evaluationEnabled: Boolean = false,
     /** How often optional online re-validation runs. Set to Long.MAX_VALUE to disable. */
     private val revalidateIntervalMillis: Long = 7L * 24 * 60 * 60 * 1000, // 7 days
 ) {
@@ -499,9 +515,14 @@ class LicenseManager(
                 maybeRevalidate(result.payload)
                 LicenseState.Licensed(result.payload)
             }
-            is VerifyResult.Expired -> {
-                if (result.payload.isTrial) renewTrial()
-                else renewPaid()
+            is VerifyResult.Expired -> when {
+                result.payload.isTrial -> renewTrial()
+                result.payload.isEvaluation -> {
+                    store.evaluationConsumed = true
+                    store.clearToken()
+                    LicenseState.NeedsActivation
+                }
+                else -> renewPaid()
             }
             is VerifyResult.Invalid -> {
                 // Foreign or tampered token — discard and start over.
@@ -528,10 +549,27 @@ class LicenseManager(
         }
     }
 
-    /** Start a no-code trial. Returns false on TRIAL_INACTIVE / PRODUCT_NOT_FOUND. */
+    /** Start a no-code Promotional Trial. Returns false on TRIAL_INACTIVE / PRODUCT_NOT_FOUND. */
     fun startTrial(): Boolean {
         val result = api.trial(machineHash, deviceLabel)
         return result is ApiResult.Token && acceptToken(result.token)
+    }
+
+    /** Start the device's one-shot Evaluation. */
+    fun startEvaluation(): Boolean {
+        if (store.evaluationConsumed) return false
+        return when (val result = api.evaluate(machineHash)) {
+            is ApiResult.Token -> {
+                val accepted = acceptToken(result.token)
+                if (accepted) store.evaluationConsumed = false
+                accepted
+            }
+            is ApiResult.Rejected -> {
+                if (result.error == "EVALUATION_EXPIRED") store.evaluationConsumed = true
+                false
+            }
+            is ApiResult.Unavailable -> false
+        }
     }
 
     /** Release this device's seat (e.g. "move my license to another TV"). */
@@ -545,9 +583,9 @@ class LicenseManager(
 
     /**
      * Recovers a License for a device with no stored token but an existing
-     * active activation — the reinstall path. On NO_ACTIVATION (or any other
-     * rejection) the device has never activated here: send it to the activation
-     * screen, which can also offer a trial.
+     * active activation — the reinstall path. Only NO_ACTIVATION proves that no
+     * paid License exists here; then try Evaluation when configured. Promotional
+     * Trial remains an explicit user choice through startTrial().
      */
     private fun tryRestore(): LicenseState {
         return when (val result = api.restore(machineHash)) {
@@ -556,7 +594,26 @@ class LicenseManager(
                     store.lastRevalidatedAt = System.currentTimeMillis()
                     LicenseState.Licensed(verifier.verify(result.token).payloadOrThrow())
                 } else LicenseState.NeedsActivation
-            is ApiResult.Rejected -> LicenseState.NeedsActivation
+            is ApiResult.Rejected ->
+                if (result.error == "NO_ACTIVATION" &&
+                    evaluationEnabled && !store.evaluationConsumed
+                ) tryEvaluation()
+                else LicenseState.NeedsActivation
+            is ApiResult.Unavailable -> LicenseState.NeedsActivation
+        }
+    }
+
+    private fun tryEvaluation(): LicenseState {
+        return when (val result = api.evaluate(machineHash)) {
+            is ApiResult.Token ->
+                if (acceptToken(result.token)) {
+                    store.evaluationConsumed = false
+                    LicenseState.Licensed(verifier.verify(result.token).payloadOrThrow())
+                } else LicenseState.NeedsActivation
+            is ApiResult.Rejected -> {
+                if (result.error == "EVALUATION_EXPIRED") store.evaluationConsumed = true
+                LicenseState.NeedsActivation
+            }
             is ApiResult.Unavailable -> LicenseState.NeedsActivation
         }
     }
@@ -568,7 +625,7 @@ class LicenseManager(
                 LicenseState.Licensed(verifier.verify(result.token).payloadOrThrow())
             result is ApiResult.Unavailable -> LicenseState.ExpiredOffline
             else -> {
-                // TRIAL_INACTIVE — the trial window has closed.
+                // TRIAL_INACTIVE — the Promotional Trial window has closed.
                 store.clearToken()
                 LicenseState.NeedsActivation
             }
@@ -597,7 +654,7 @@ class LicenseManager(
      * Definitive rejection downgrades; an inconclusive result never does.
      */
     private fun maybeRevalidate(payload: LicensePayload) {
-        if (payload.isTrial) return // trials renew on expiry, not on a schedule
+        if (payload.isTrial || payload.isEvaluation) return
         val code = store.activationCode ?: return
         val due = System.currentTimeMillis() - store.lastRevalidatedAt >= revalidateIntervalMillis
         if (!due) return
@@ -647,7 +704,7 @@ val machineHash = MachineHash.derive(context, productCode)
 val manager = LicenseManager(
     verifier = LicenseVerifier(
         expectedProductCode = productCode,
-        expectedIssuer = "licsign",                 // the operator-provided issuer string
+        expectedIssuer = "licsign",                 // the Admin-provided issuer string
         expectedMachineHash = machineHash,
     ),
     api = LicenseApi(
@@ -658,37 +715,40 @@ val manager = LicenseManager(
     store = LicenseStore(context),
     machineHash = machineHash,
     deviceLabel = android.os.Build.MODEL,
+    evaluationEnabled = true, // from the exported ClientIntegrationConfig
 )
 
 // On every launch, off the main thread:
 when (val state = manager.onLaunch()) {
     is LicenseState.Licensed     -> enterApp(state.payload)
-    LicenseState.NeedsActivation -> showActivationScreen()   // offer code entry and/or trial
+    LicenseState.NeedsActivation -> showActivationScreen()   // offer code entry and/or free offer
     LicenseState.ExpiredOffline  -> showReconnectScreen()    // "license expired, connect to internet"
 }
 ```
 
 ---
 
-## 8. Trial UX
+## 8. Promotional Trial and Evaluation UX
 
-When `LicenseState.Licensed` carries a payload with `isTrial == true`, drive
-trial-specific UI from it:
+When `LicenseState.Licensed` carries a Promotional Trial or Evaluation payload,
+drive the corresponding free-offer UI from its kind and anchored expiry:
 
 ```kotlin
-fun trialBadge(payload: LicensePayload): String? {
-    if (!payload.isTrial) return null
-    val expiresAt = payload.expiresAtMillis() ?: return "Trial"
+fun freeOfferBadge(payload: LicensePayload): String? {
+    if (!payload.isTrial && !payload.isEvaluation) return null
+    val label = if (payload.isEvaluation) "Evaluation" else "Promotional Trial"
+    val expiresAt = payload.expiresAtMillis() ?: return label
     val daysLeft = ((expiresAt - System.currentTimeMillis()) / (24 * 60 * 60 * 1000L))
         .coerceAtLeast(0)
-    return "Trial — $daysLeft day(s) left"
+    return "$label — $daysLeft day(s) left"
 }
 ```
 
-As a trial token nears expiry, surface a purchase prompt. The trial renews
-automatically via `renewTrial()` while the product's trial window stays open;
-once it closes, `renewTrial()` lands on `NeedsActivation` and the user must enter
-a paid Activation Code (agnostic guide §9).
+As a Promotional Trial token nears expiry, surface a purchase prompt. It renews
+automatically via `renewTrial()` while the product's Promotional Trial window stays open.
+An Evaluation never renews or extends: when its anchored expiry passes,
+`onLaunch()` marks it consumed, clears its token, and lands on `NeedsActivation`,
+where the user can purchase and enter an Activation Code.
 
 ---
 
@@ -698,8 +758,10 @@ a paid Activation Code (agnostic guide §9).
 - [ ] `machine_hash` is derived once and cached for the process, and is
       **reinstall-stable** on the target devices (verified, not assumed) so that
       `restore()` can recover a License after an uninstall+reinstall.
-- [ ] `TrustedKeys.jwks` contains every currently-valid `kid` from the operator.
+- [ ] `TrustedKeys.jwks` contains every currently-valid `kid` from the Admin.
 - [ ] All `LicenseApi` / `LicenseManager` calls run off the main thread.
+- [ ] Evaluation availability and duration come from the exported client config;
+      `evaluationConsumed` prevents repeated `/evaluate` calls after expiry.
 - [ ] Freshly issued tokens are verified (`acceptToken`) before being stored.
 - [ ] The raw → DER signature conversion (§4) is unit-tested against a real token.
 - [ ] The private signing key is **never** present anywhere in the app.

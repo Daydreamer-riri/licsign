@@ -147,6 +147,14 @@ export default function ProductOverviewPage({
                 value={product.trial_enabled === 1 ? "Enabled" : "Disabled"}
               />
               <DetailRow
+                label="Evaluation"
+                value={
+                  product.evaluation_enabled === 1
+                    ? `${product.evaluation_token_ttl_days ?? "?"} days`
+                    : "Disabled"
+                }
+              />
+              <DetailRow
                 label="Disabled"
                 value={<span className="tabular-nums">{counts.disabled}</span>}
               />

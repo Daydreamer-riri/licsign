@@ -20,6 +20,16 @@ export async function getLicenseCount(
   return row?.count ?? 0;
 }
 
+export async function getEvaluationCount(
+  db: D1Database,
+  issuerId: string,
+): Promise<number> {
+  const row = await first<{ count: number }>(
+    db.prepare("SELECT COUNT(*) AS count FROM evaluation_activations WHERE issuer_id = ?").bind(issuerId),
+  );
+  return row?.count ?? 0;
+}
+
 interface RecentActivation {
   activation_id: string;
   license_id: string;

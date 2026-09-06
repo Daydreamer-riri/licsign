@@ -14,6 +14,8 @@ export type ClientActivationError =
   | "NO_ACTIVATION"
   | "DEVICE_LIMIT_REACHED"
   | "TRIAL_INACTIVE"
+  | "EVALUATION_INACTIVE"
+  | "EVALUATION_EXPIRED"
   | "BAD_REQUEST"
   | "SERVER_ERROR";
 
@@ -26,7 +28,7 @@ export type LicenseGateValidationResult =
   | "IP_LIMIT_EXCEEDED"
   | "RATE_LIMIT_EXCEEDED";
 
-export type OfflineLicenseKind = "license" | "trial";
+export type OfflineLicenseKind = "license" | "trial" | "evaluation";
 
 export interface OfflineLicensePayload {
   version: 1;
@@ -78,5 +80,7 @@ export interface ClientIntegrationConfig {
   product_code: string;
   expected_issuer: string;
   trial_enabled: boolean;
+  evaluation_enabled: boolean;
+  evaluation_token_ttl_days: number | null;
   signing_keys: SigningKeyEntry[];
 }

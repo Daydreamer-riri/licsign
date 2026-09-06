@@ -52,6 +52,8 @@ export async function insert(
     trialStartAt: string | null;
     trialEndAt: string | null;
     trialTtlSeconds: number | null;
+    evaluationEnabled: boolean;
+    evaluationTtlDays: number | null;
     now: string;
   },
 ): Promise<void> {
@@ -61,8 +63,9 @@ export async function insert(
         `INSERT INTO products
           (id, issuer_id, code, name, description, status, default_max_devices,
            trial_enabled, trial_start_at, trial_end_at, trial_token_ttl_seconds,
+           evaluation_enabled, evaluation_token_ttl_days,
            created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?)`,
+         VALUES (?, ?, ?, ?, ?, 'active', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .bind(
         params.id,
@@ -75,6 +78,8 @@ export async function insert(
         params.trialStartAt,
         params.trialEndAt,
         params.trialTtlSeconds,
+        params.evaluationEnabled ? 1 : 0,
+        params.evaluationTtlDays,
         params.now,
         params.now,
       ),
@@ -95,6 +100,8 @@ export async function update(
     trialStartAt: string | null;
     trialEndAt: string | null;
     trialTtlSeconds: number | null;
+    evaluationEnabled: boolean;
+    evaluationTtlDays: number | null;
     now: string;
   },
 ): Promise<void> {
@@ -104,6 +111,7 @@ export async function update(
         `UPDATE products
          SET code = ?, name = ?, description = ?, status = ?, default_max_devices = ?,
              trial_enabled = ?, trial_start_at = ?, trial_end_at = ?, trial_token_ttl_seconds = ?,
+             evaluation_enabled = ?, evaluation_token_ttl_days = ?,
              updated_at = ?
          WHERE id = ? AND issuer_id = ?`,
       )
@@ -117,6 +125,8 @@ export async function update(
         params.trialStartAt,
         params.trialEndAt,
         params.trialTtlSeconds,
+        params.evaluationEnabled ? 1 : 0,
+        params.evaluationTtlDays,
         params.now,
         productId,
         issuerId,

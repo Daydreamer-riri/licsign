@@ -1,4 +1,4 @@
-import type { Context } from "hono";
+import type { Context, HonoRequest } from "hono";
 import { ZodError } from "zod";
 import type { ApiErrorResponse } from "../../../shared/src/types";
 
@@ -21,6 +21,14 @@ export function jsonError<TCode extends string>(
   details?: unknown
 ): Response {
   return c.json({ error: code, message, details } satisfies ApiErrorResponse<TCode>, status as never);
+}
+
+export async function parseJsonBody(request: HonoRequest): Promise<unknown> {
+  try {
+    return await request.json();
+  } catch {
+    throw new ApiError(400, "BAD_REQUEST", "Malformed JSON body");
+  }
 }
 
 export function toApiError(error: unknown): ApiError {

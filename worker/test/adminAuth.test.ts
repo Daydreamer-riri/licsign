@@ -116,6 +116,12 @@ class FakeStatement {
       return { count: this.db.licenses.filter((l) => l.issuer_id === issuerId).length } as T;
     }
 
+    // evaluation_activations count
+    if (sql.includes("COUNT(*)") && sql.includes("evaluation_activations")) {
+      const issuerId = this.args[0] as string;
+      return { count: this.db.evaluationActivations.filter((e) => e.issuer_id === issuerId).length } as T;
+    }
+
     // audit_logs count
     if (sql.includes("COUNT(*)") && sql.includes("audit_logs")) {
       const issuerId = this.args[0] as string;
@@ -259,6 +265,7 @@ class FakeDB {
   licenses: LicenseRow[] = [];
   activations: ActivationRow[] = [];
   auditLogs: AuditLogRow[] = [];
+  evaluationActivations: { issuer_id: string }[] = [];
 
   prepare(sql: string): FakeStatement {
     return new FakeStatement(sql, this);

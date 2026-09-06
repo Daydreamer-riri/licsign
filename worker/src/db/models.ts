@@ -31,6 +31,8 @@ export interface ProductRow {
   trial_start_at: string | null;
   trial_end_at: string | null;
   trial_token_ttl_seconds: number | null;
+  evaluation_enabled: number;
+  evaluation_token_ttl_days: number | null;
   created_at: string;
   updated_at: string;
 }
@@ -47,6 +49,15 @@ export interface TrialActivationRow {
   last_seen_at: string;
   last_token_expires_at: string;
   token_count: number;
+}
+
+export interface EvaluationActivationRow {
+  id: string;
+  issuer_id: string;
+  product_id: string;
+  machine_hash: string;
+  first_issued_at: string;
+  expires_at: string;
 }
 
 export interface LicenseRow {
