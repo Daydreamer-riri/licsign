@@ -141,11 +141,10 @@ describe("products service — evaluation fields", () => {
 
     const product = await updateProduct(db as unknown as D1Database, "iss_test", ACTOR, "prd_1", {
       evaluation_enabled: true,
-      evaluation_token_ttl_days: 7,
     });
 
     expect(product.evaluation_enabled).toBe(1);
-    expect(product.evaluation_token_ttl_days).toBe(7);
+    expect(product.evaluation_token_ttl_days).toBeNull();
   });
 
   it("updateProduct can update evaluation_token_ttl_days independently", async () => {
@@ -195,7 +194,7 @@ describe("products service — evaluation fields", () => {
     });
   });
 
-  it("evaluation fields are independent from trial fields", async () => {
+  it("evaluation fields are independent from Promotional Trial fields", async () => {
     const product = await createProduct(db as unknown as D1Database, "iss_test", ACTOR, {
       code: "tv-app",
       name: "TV App",

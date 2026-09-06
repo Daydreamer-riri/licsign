@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Env } from "../types";
 import { verifyLicenseGateCompat } from "../services/licenseGateCompat";
+import { parseJsonBody } from "../utils/http";
 
 export const compatRoutes = new Hono<{ Bindings: Env }>();
 
@@ -24,7 +25,7 @@ compatRoutes.post("/:userId/:licenseKey/verify", async (c) => {
     await verifyLicenseGateCompat(c.env, {
       userId: c.req.param("userId"),
       licenseKey: c.req.param("licenseKey"),
-      options: await c.req.json()
+      options: await parseJsonBody(c.req)
     })
   );
 });

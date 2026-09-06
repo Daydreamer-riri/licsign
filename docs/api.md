@@ -278,11 +278,12 @@ of `trial_start_at`, `trial_end_at`, and `trial_token_ttl_seconds` are required;
 `trial_enabled` to `false` stops new Promotional Trial issuance immediately while existing
 Promotional Trial tokens remain valid offline until their TTL expires.
 
-The two `evaluation_*` fields are optional and independent of the Promotional Trial fields — a
-product can have both configured simultaneously. `evaluation_token_ttl_days` is a
-positive integer (minimum 1) whose resulting expiry must fit the supported ISO
-8601 date range. When `evaluation_enabled` is `true`,
-`evaluation_token_ttl_days` must be set. Toggling `evaluation_enabled` to `false`
+The two `evaluation_*` fields are optional, can be updated independently, and are
+independent of the Promotional Trial fields — a product can have both configured
+simultaneously. `evaluation_token_ttl_days` is a positive integer (minimum 1)
+whose resulting expiry must fit the supported ISO 8601 date range. Evaluation
+issuance remains inactive while `evaluation_enabled` is `false` or
+`evaluation_token_ttl_days` is unset. Toggling `evaluation_enabled` to `false`
 stops new evaluation issuance; existing evaluation tokens remain valid until their
 anchored expiry.
 

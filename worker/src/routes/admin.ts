@@ -16,6 +16,7 @@ import { getDashboardStats } from "../services/dashboard";
 import { getProductOverview } from "../services/productOverview";
 import { buildClientConfig } from "../services/clientConfig";
 import { queryAuditLogs } from "../services/auditQuery";
+import { parseJsonBody } from "../utils/http";
 
 export const adminRoutes = new Hono<{ Bindings: Env; Variables: { admin: AdminContext } }>();
 
@@ -30,13 +31,13 @@ adminRoutes.get("/products", async (c) => {
 
 adminRoutes.post("/products", async (c) => {
   const admin = c.get("admin");
-  return c.json(await createProduct(c.env.DB, admin.issuerId, admin.actor, await c.req.json()));
+  return c.json(await createProduct(c.env.DB, admin.issuerId, admin.actor, await parseJsonBody(c.req)));
 });
 
 adminRoutes.patch("/products/:id", async (c) => {
   const admin = c.get("admin");
   return c.json(
-    await updateProduct(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await c.req.json())
+    await updateProduct(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await parseJsonBody(c.req))
   );
 });
 
@@ -70,7 +71,7 @@ adminRoutes.get("/batches", async (c) => {
 
 adminRoutes.post("/batches", async (c) => {
   const admin = c.get("admin");
-  return c.json(await createBatch(c.env.DB, admin.issuerId, admin.actor, await c.req.json()));
+  return c.json(await createBatch(c.env.DB, admin.issuerId, admin.actor, await parseJsonBody(c.req)));
 });
 
 adminRoutes.get("/batches/:id", async (c) => {
@@ -111,7 +112,7 @@ adminRoutes.post("/licenses/:id/enable", async (c) => {
 
 adminRoutes.post("/licenses/:id/revoke", async (c) => {
   const admin = c.get("admin");
-  return c.json(await revokeLicense(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await c.req.json()));
+  return c.json(await revokeLicense(c.env.DB, admin.issuerId, admin.actor, c.req.param("id"), await parseJsonBody(c.req)));
 });
 
 // --- Admin management ---
@@ -128,7 +129,7 @@ adminRoutes.get("/admins", async (c) => {
 
 adminRoutes.post("/admins", async (c) => {
   const admin = c.get("admin");
-  const body = createAdminSchema.parse(await c.req.json());
+  const body = createAdminSchema.parse(await parseJsonBody(c.req));
   const result = await createAdmin(c.env.DB, admin.issuerId, body.email, body.password);
   return c.json(result, 201);
 });

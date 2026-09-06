@@ -66,13 +66,6 @@ function resolveEvaluationFields(
   const enabled = input.evaluation_enabled ?? (existing ? existing.evaluation_enabled === 1 : false);
   const ttl_days = pick(input.evaluation_token_ttl_days, existing?.evaluation_token_ttl_days);
 
-  if (enabled && ttl_days === null) {
-    throw new ApiError(
-      400,
-      "EVALUATION_CONFIG_INCOMPLETE",
-      "evaluation_enabled requires evaluation_token_ttl_days"
-    );
-  }
   if (ttl_days !== null && evaluationExpiry(ttl_days, Date.now()) === null) {
     throw new ApiError(
       400,

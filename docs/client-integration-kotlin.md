@@ -583,10 +583,9 @@ class LicenseManager(
 
     /**
      * Recovers a License for a device with no stored token but an existing
-     * active activation — the reinstall path. On NO_ACTIVATION (or any other
-     * rejection) no paid License exists here: try Evaluation when configured,
-     * then show the activation screen. Promotional Trial remains an explicit
-     * user choice through startTrial().
+     * active activation — the reinstall path. Only NO_ACTIVATION proves that no
+     * paid License exists here; then try Evaluation when configured. Promotional
+     * Trial remains an explicit user choice through startTrial().
      */
     private fun tryRestore(): LicenseState {
         return when (val result = api.restore(machineHash)) {
@@ -596,7 +595,9 @@ class LicenseManager(
                     LicenseState.Licensed(verifier.verify(result.token).payloadOrThrow())
                 } else LicenseState.NeedsActivation
             is ApiResult.Rejected ->
-                if (evaluationEnabled && !store.evaluationConsumed) tryEvaluation()
+                if (result.error == "NO_ACTIVATION" &&
+                    evaluationEnabled && !store.evaluationConsumed
+                ) tryEvaluation()
                 else LicenseState.NeedsActivation
             is ApiResult.Unavailable -> LicenseState.NeedsActivation
         }

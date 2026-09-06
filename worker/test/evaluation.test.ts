@@ -164,6 +164,23 @@ describe("POST /api/client/evaluate", () => {
     expect(response.status).toBe(403);
     await expect(response.json()).resolves.toMatchObject({ error: "EVALUATION_INACTIVE" });
   });
+
+  it("returns BAD_REQUEST for malformed JSON", async () => {
+    const env = await makeEnv(db);
+
+    const response = await worker.fetch(
+      new Request("https://licsign.test/api/client/evaluate", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: "{",
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+
+    expect(response.status).toBe(400);
+    await expect(response.json()).resolves.toMatchObject({ error: "BAD_REQUEST" });
+  });
 });
 
 describe("issueEvaluation", () => {
