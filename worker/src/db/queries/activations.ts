@@ -161,6 +161,38 @@ export async function deactivateByLicenseAndMachine(
   );
 }
 
+export async function deactivateByLicenseAndId(
+  db: D1Database,
+  licenseId: string,
+  activationId: string,
+  now: string,
+): Promise<D1Result> {
+  return run(
+    db
+      .prepare(
+        `UPDATE activations
+         SET status = 'deactivated', deactivated_at = ?, last_seen_at = ?
+         WHERE license_id = ? AND id = ? AND status = 'active'`,
+      )
+      .bind(now, now, licenseId, activationId),
+  );
+}
+
+export async function listActiveByLicense(
+  db: D1Database,
+  licenseId: string,
+): Promise<ActivationRow[]> {
+  return all<ActivationRow>(
+    db
+      .prepare(
+        `SELECT * FROM activations
+         WHERE license_id = ? AND status = 'active'
+         ORDER BY activated_at DESC`,
+      )
+      .bind(licenseId),
+  );
+}
+
 export async function listByLicense(
   db: D1Database,
   licenseId: string,

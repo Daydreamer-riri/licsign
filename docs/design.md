@@ -23,6 +23,7 @@ Implemented in V1:
 - Device limit enforcement using client-provided `machine_hash`.
 - License disable, enable, revoke, search, detail, and CSV export.
 - Email/password Admin sessions and a same-origin browser Admin UI.
+- Activation Code Holder device self-service at `/devices`.
 
 Deferred:
 
@@ -151,6 +152,28 @@ limiting (a Cloudflare WAF rule, or KV counters) is the recommended follow-up if
 bulk probing with leaked `machine_hash` values becomes a problem. Successful
 restores write a `client.restore` audit log; `NO_ACTIVATION` failures write a
 `client.restore_failed` entry so harvesting probes are visible in audit history.
+
+## Device Self-Service
+
+An **Activation Code Holder** can open the public, Chinese-language `/devices`
+page to list active device seats and deactivate one device at a time. Possession
+of the Activation Code is the only authorization; there is no end-user account.
+The code is sent only in POST JSON bodies and stays in page memory, while API
+responses use `Cache-Control: no-store`.
+
+The browser receives `activations.id` as an opaque selector plus device label,
+platform, timestamps, and the final six characters of `machine_hash`; it never
+receives the full hash. Deactivation updates the existing activation to
+`deactivated` rather than deleting it, preserving reactivation and audit history.
+It releases the seat but cannot invalidate an Offline License already on that
+device. Disabled, revoked, expired, and archived-Product Licenses remain
+manageable, with a warning that a deactivated device may not be able to activate
+again.
+
+Both self-service endpoints use a Cloudflare Rate Limiting binding keyed by IP
+(30 requests per minute per Cloudflare location). Custom-domain deployments can
+also add a zone-level WAF rate limiting rule for `/api/client/devices*` to reject
+abuse before Worker execution.
 
 ## Admin UI
 

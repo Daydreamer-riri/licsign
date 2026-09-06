@@ -76,6 +76,76 @@ Stable `POST /api/client/activate` errors:
 
 Marks a machine activation as deactivated, allowing the seat to be reused.
 
+Request:
+
+```json
+{
+  "product_code": "my_product",
+  "activation_code": "PROD-ABCD-EFGH-JKLM-NPQR",
+  "machine_hash": "64-character-sha256-hex"
+}
+```
+
+Returns `{ "ok": true }` and remains idempotent when the machine is not active.
+
+### Device self-service
+
+The public `/devices` page lets an **Activation Code Holder** list the active
+Devices using a License and deactivate one device at a time. The Activation Code
+is the bearer credential; the page keeps it in memory only and sends it in JSON
+request bodies, never in a URL.
+
+#### `POST /api/client/devices`
+
+Request:
+
+```json
+{ "activation_code": "PROD-ABCD-EFGH-JKLM-NPQR" }
+```
+
+Response:
+
+```json
+{
+  "product": { "code": "my_product", "name": "My Product" },
+  "license": {
+    "status": "activated",
+    "max_devices": 2,
+    "active_devices": 1,
+    "can_reactivate": true
+  },
+  "devices": [
+    {
+      "id": "act_xxx",
+      "device_label": "Living Room TV",
+      "platform": "android-tv",
+      "activated_at": "2026-05-18T00:00:00.000Z",
+      "last_seen_at": "2026-05-20T00:00:00.000Z",
+      "machine_hash_suffix": "52b855"
+    }
+  ]
+}
+```
+
+Only active devices are returned. The full `machine_hash` is never exposed.
+`can_reactivate` is false when the Product is archived or the License is disabled,
+revoked, or expired; devices can still be listed and deactivated in those states.
+
+#### `POST /api/client/devices/:activationId/deactivate`
+
+The body is the same `{ "activation_code": "..." }`. The Worker verifies that
+the active `activationId` belongs to that code before marking it `deactivated`.
+Returns `{ "ok": true }`; otherwise `DEVICE_NOT_FOUND` (404). Both device-management
+responses send `Cache-Control: no-store`.
+
+Device Deactivation releases a seat but does not invalidate an Offline License
+already stored on that device. The device can activate again later if the License
+is serviceable and a seat is available.
+
+The Worker Rate Limiting binding protects both endpoints at 30 requests per IP
+per minute. A custom-domain deployment may additionally enforce the same paths
+with a Cloudflare WAF rate limiting rule before requests reach the Worker.
+
 ### `POST /api/client/trial`
 
 Issues a signed **Promotional Trial** license for the requesting machine when the product's Promotional Trial

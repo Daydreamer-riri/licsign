@@ -21,8 +21,16 @@ A person, automation credential, client, or system that performs an auditable ac
 _Avoid_: User, caller
 
 **Activation Code**:
-A user-facing code that can be exchanged online for a signed offline license.
+A user-facing bearer credential that can be exchanged online for a signed offline license and authorizes self-service management of that code's device seats.
 _Avoid_: License key, token
+
+**Activation Code Holder**:
+A person currently possessing an **Activation Code** and therefore authorized to manage its device seats. This is possession-based access, not an account or verified identity.
+_Avoid_: User, customer, owner
+
+**Device Deactivation**:
+An online action that marks one device activation inactive and releases its device seat. It does not invalidate an **Offline License** already stored on that device.
+_Avoid_: Device unbinding, device revocation
 
 **Offline License**:
 A signed artifact the client stores and verifies locally; it is either a paid

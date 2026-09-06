@@ -100,6 +100,12 @@ export const deactivateSchema = z.object({
   machine_hash: machineHashSchema
 });
 
+export const activationCodeSchema = z.object({
+  activation_code: z.string().min(1).max(160)
+});
+
+export const activationIdSchema = z.string().min(1).max(80);
+
 export const restoreSchema = z.object({
   product_code: productCodeSchema,
   machine_hash: machineHashSchema

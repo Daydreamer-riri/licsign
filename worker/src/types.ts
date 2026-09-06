@@ -6,6 +6,7 @@ export interface Env {
   SIGNING_PRIVATE_JWK: string;
   SIGNING_KEY_ID: string;
   AUDIT_LOG_RETENTION_DAYS?: string;
+  DEVICE_MANAGER_RATE_LIMITER?: RateLimit;
 }
 
 export type AdminActor =

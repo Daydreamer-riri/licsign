@@ -21,6 +21,14 @@ describe("api client", () => {
     expect(data.value).toBe(42);
   });
 
+  it("carries the Worker error envelope code", async () => {
+    vi.stubGlobal("fetch", mockFetch(404, { error: "INVALID_CODE", message: "Not found" }));
+    await expect(api.post("/api/client/devices", {})).rejects.toMatchObject({
+      status: 404,
+      code: "INVALID_CODE",
+    });
+  });
+
   it("throws an ApiError carrying the server message on failure", async () => {
     vi.stubGlobal("fetch", mockFetch(409, { message: "Conflict happened" }));
     await expect(api.post("/api/x", {})).rejects.toMatchObject({

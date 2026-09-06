@@ -7,6 +7,7 @@ import {
 
 export default [
   route("login", "pages/Login.tsx"),
+  route("devices", "pages/Devices.tsx"),
   layout("pages/ProtectedLayout.tsx", { id: "protected" }, [
     index("pages/Products.tsx"),
     route(

@@ -41,7 +41,7 @@ async function request<T>(
   }
 
   const data = (await res.json().catch(() => null)) as
-    | (Record<string, unknown> & { message?: string; code?: string })
+    | (Record<string, unknown> & { message?: string; code?: string; error?: string })
     | null;
 
   if (res.status === 401) {
@@ -51,14 +51,14 @@ async function request<T>(
     throw new ApiError(
       data?.message ?? "Your session has expired. Sign in again.",
       401,
-      data?.code,
+      data?.code ?? data?.error,
     );
   }
   if (!res.ok) {
     throw new ApiError(
       data?.message ?? "Something went wrong. Try again.",
       res.status,
-      data?.code,
+      data?.code ?? data?.error,
     );
   }
   return data as T;

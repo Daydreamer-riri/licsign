@@ -23,6 +23,28 @@ export const openApiDocument = {
         }
       }
     },
+    "/api/client/devices": {
+      post: {
+        summary: "List active devices for an activation code",
+        responses: {
+          "200": { description: "Active devices and seat usage" },
+          "400": { description: "BAD_REQUEST" },
+          "404": { description: "INVALID_CODE" },
+          "429": { description: "RATE_LIMIT_EXCEEDED" }
+        }
+      }
+    },
+    "/api/client/devices/{activationId}/deactivate": {
+      post: {
+        summary: "Deactivate one device belonging to an activation code",
+        responses: {
+          "200": { description: "Deactivation result" },
+          "400": { description: "BAD_REQUEST" },
+          "404": { description: "INVALID_CODE or DEVICE_NOT_FOUND" },
+          "429": { description: "RATE_LIMIT_EXCEEDED" }
+        }
+      }
+    },
     "/api/client/trial": {
       post: {
         summary:

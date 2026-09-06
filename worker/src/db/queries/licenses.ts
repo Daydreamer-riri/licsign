@@ -1,16 +1,21 @@
 import { first, all, run } from "../d1";
 import type { LicenseWithProductRow, LicenseRow } from "../models";
 
+export interface ManagedLicenseRow extends LicenseWithProductRow {
+  product_name: string;
+}
+
 export async function findByActivationCode(
   db: D1Database,
   activationCode: string,
-): Promise<LicenseWithProductRow | null> {
-  return first<LicenseWithProductRow>(
+): Promise<ManagedLicenseRow | null> {
+  return first<ManagedLicenseRow>(
     db
       .prepare(
         `SELECT
           licenses.*,
           products.code AS product_code,
+          products.name AS product_name,
           products.status AS product_status,
           products.issuer_id AS product_issuer_id
          FROM licenses

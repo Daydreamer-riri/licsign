@@ -2,7 +2,10 @@
 
 Cloudflare-native license service for activation-code based offline licenses.
 
-The V1 service is API-only:
+It includes a same-origin Admin UI and a public Chinese `/devices` page where an
+Activation Code Holder can view active devices and release a device seat.
+
+The V1 service includes:
 
 - Cloudflare Worker runtime
 - D1 as the system of record
@@ -10,6 +13,7 @@ The V1 service is API-only:
 - Product and batch activation-code management
 - One-time client activation
 - Signed offline license tokens for Android TV clients
+- Same-origin Admin UI and Chinese device self-service page
 - LicenseGate-style online verify compatibility endpoint
 
 ## Deploy to Cloudflare
@@ -105,7 +109,11 @@ Cloudflare dashboard and confirm:
 1. `Settings` > `Variables`:
    - `LICENSE_ISSUER`: public issuer name in signed licenses, default `licsign`.
    - `CORS_ORIGIN`: allowed browser origin, default `*`.
-2. `Settings` > `Variables and Secrets`:
+   - `AUDIT_LOG_RETENTION_DAYS`: audit retention window, default `30`.
+2. `Settings` > `Bindings`:
+   - `DEVICE_MANAGER_RATE_LIMITER`: Wrangler-provisioned binding that limits
+     `/api/client/devices*` to 30 requests per IP per minute.
+3. `Settings` > `Variables and Secrets`:
    - `SIGNING_KEY_ID`
    - `SIGNING_PRIVATE_JWK`
 

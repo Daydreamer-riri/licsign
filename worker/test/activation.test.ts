@@ -1,8 +1,10 @@
-import { beforeEach, describe, expect, it } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 import { activate, deactivate } from "../src/services/activation";
+import { deactivateManagedDevice, listActiveDevices } from "../src/services/deviceManagement";
 import type { ActivationRow, LicenseRow, ProductRow } from "../src/db/models";
 import type { LicenseStatus, ProductStatus } from "../../shared/src/types";
 import type { Env } from "../src/types";
+import worker from "../src/index";
 
 interface AuditLogRow {
   action: string;
@@ -31,6 +33,7 @@ class FakeStatement {
       return {
         ...lic,
         product_code: prod.code,
+        product_name: prod.name,
         product_status: prod.status,
         product_issuer_id: prod.issuer_id,
       } as unknown as T;
@@ -57,8 +60,17 @@ class FakeStatement {
   }
 
   async all<T>() {
+    const sql = this.sql.trim();
+
+    if (sql.includes("FROM activations") && sql.includes("status = 'active'")) {
+      const licenseId = this.args[0] as string;
+      const results = this.db.activations
+        .filter((activation) => activation.license_id === licenseId && activation.status === "active")
+        .sort((left, right) => right.activated_at.localeCompare(left.activated_at));
+      return { results: results as unknown as T[] };
+    }
+
     throw new Error("unhandled all(): " + this.sql);
-    return { results: [] as T[] };
   }
 
   async run() {
@@ -76,6 +88,25 @@ class FakeStatement {
         if (platform !== null) row.platform = platform;
       }
       return { success: true } as never;
+    }
+
+    if (
+      sql.startsWith("UPDATE activations") &&
+      sql.includes("status = 'deactivated'") &&
+      sql.includes("AND id = ?")
+    ) {
+      const [deactivatedAt, lastSeen, licenseId, activationId] = this.args as [
+        string, string, string, string
+      ];
+      const row = this.db.activations.find(
+        (a) => a.license_id === licenseId && a.id === activationId && a.status === "active"
+      );
+      if (row) {
+        row.status = "deactivated";
+        row.deactivated_at = deactivatedAt;
+        row.last_seen_at = lastSeen;
+      }
+      return { success: true, meta: { changes: row ? 1 : 0 } } as never;
     }
 
     if (sql.startsWith("UPDATE activations") && sql.includes("status = 'deactivated'")) {
@@ -676,5 +707,155 @@ describe("deactivate", () => {
     expect(entry!.target_id).toBe("lic_test");
     const details = JSON.parse(entry!.details_json!);
     expect(details.machine_hash).toBe(MACHINE_A);
+  });
+});
+
+describe("device management", () => {
+  it("lists only active devices without exposing machine hashes", async () => {
+    const db = new FakeDB();
+    db.products.push(makeProduct());
+    db.licenses.push(makeLicense({ status: "activated", max_devices: 3 }));
+    const now = new Date().toISOString();
+    db.activations.push(
+      {
+        id: "act_active",
+        license_id: "lic_test",
+        machine_hash: MACHINE_A,
+        device_label: "Living Room TV",
+        client_version: "1.0.0",
+        platform: "android-tv",
+        status: "active",
+        activated_at: now,
+        deactivated_at: null,
+        last_seen_at: now,
+        license_payload_version: 1,
+      },
+      {
+        id: "act_old",
+        license_id: "lic_test",
+        machine_hash: MACHINE_B,
+        device_label: "Old TV",
+        client_version: null,
+        platform: "android-tv",
+        status: "deactivated",
+        activated_at: now,
+        deactivated_at: now,
+        last_seen_at: now,
+        license_payload_version: 1,
+      },
+    );
+
+    const result = await listActiveDevices(await makeEnv(db), {
+      activation_code: "CODE-1234",
+    });
+
+    expect(result).toEqual({
+      product: { code: "tv-app", name: "TV App" },
+      license: {
+        status: "activated",
+        max_devices: 3,
+        active_devices: 1,
+        can_reactivate: true,
+      },
+      devices: [
+        {
+          id: "act_active",
+          device_label: "Living Room TV",
+          platform: "android-tv",
+          activated_at: now,
+          last_seen_at: now,
+          machine_hash_suffix: MACHINE_A.slice(-6),
+        },
+      ],
+    });
+    expect(JSON.stringify(result)).not.toContain(MACHINE_A);
+  });
+
+  it("serves no-store responses and enforces the configured rate limit", async () => {
+    const db = new FakeDB();
+    db.products.push(makeProduct());
+    db.licenses.push(makeLicense({ status: "activated" }));
+    const limiter = { limit: vi.fn().mockResolvedValue({ success: true }) };
+    const env = {
+      ...(await makeEnv(db)),
+      DEVICE_MANAGER_RATE_LIMITER: limiter as RateLimit,
+    };
+    const request = () => new Request("https://example.com/api/client/devices", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "CF-Connecting-IP": "203.0.113.5",
+      },
+      body: JSON.stringify({ activation_code: "CODE-1234" }),
+    });
+
+    const response = await worker.fetch(request(), env, {} as ExecutionContext);
+    expect(response.status).toBe(200);
+    expect(response.headers.get("Cache-Control")).toBe("no-store");
+    expect(limiter.limit).toHaveBeenCalledWith({ key: "devices:203.0.113.5" });
+
+    limiter.limit.mockResolvedValueOnce({ success: false });
+    const blocked = await worker.fetch(request(), env, {} as ExecutionContext);
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Cache-Control")).toBe("no-store");
+    await expect(blocked.json()).resolves.toMatchObject({ error: "RATE_LIMIT_EXCEEDED" });
+  });
+
+  it("rate limits malformed JSON before parsing it", async () => {
+    const db = new FakeDB();
+    const limiter = { limit: vi.fn().mockResolvedValue({ success: false }) };
+    const env = {
+      ...(await makeEnv(db)),
+      DEVICE_MANAGER_RATE_LIMITER: limiter as RateLimit,
+    };
+    const response = await worker.fetch(
+      new Request("https://example.com/api/client/devices", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "CF-Connecting-IP": "203.0.113.5",
+        },
+        body: "{malformed",
+      }),
+      env,
+      {} as ExecutionContext,
+    );
+
+    expect(response.status).toBe(429);
+    expect(limiter.limit).toHaveBeenCalledWith({ key: "devices:203.0.113.5" });
+    await expect(response.json()).resolves.toMatchObject({ error: "RATE_LIMIT_EXCEEDED" });
+  });
+
+  it("deactivates only an active device belonging to the activation code", async () => {
+    const db = new FakeDB();
+    db.products.push(makeProduct());
+    db.licenses.push(makeLicense({ status: "activated" }));
+    const now = new Date().toISOString();
+    db.activations.push({
+      id: "act_a",
+      license_id: "lic_test",
+      machine_hash: MACHINE_A,
+      device_label: null,
+      client_version: null,
+      platform: null,
+      status: "active",
+      activated_at: now,
+      deactivated_at: null,
+      last_seen_at: now,
+      license_payload_version: 1,
+    });
+    const env = await makeEnv(db);
+
+    await expect(
+      deactivateManagedDevice(env, "act_other", { activation_code: "CODE-1234" }),
+    ).rejects.toMatchObject({ status: 404, code: "DEVICE_NOT_FOUND" });
+    expect(db.activations[0]!.status).toBe("active");
+
+    await expect(
+      deactivateManagedDevice(env, "act_a", { activation_code: "CODE-1234" }),
+    ).resolves.toEqual({ ok: true });
+    expect(db.activations[0]!.status).toBe("deactivated");
+    expect(db.auditLogs.at(-1)?.action).toBe("client.deactivate");
+    expect(JSON.parse(db.auditLogs.at(-1)!.details_json!)).toEqual({ activation_id: "act_a" });
   });
 });

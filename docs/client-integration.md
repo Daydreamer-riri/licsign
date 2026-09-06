@@ -39,7 +39,7 @@ and never moves.
 
 After a reinstall wipes the stored token, a device that was already activated can
 recover its Offline License with `POST /api/client/restore` — again **without** an
-Activation Code — using only its `machine_hash` (§5.5).
+Activation Code — using only its `machine_hash` (§5.6).
 
 ### Terminology
 
@@ -254,7 +254,7 @@ the license's `max_devices`.
 | `LICENSE_DISABLED` | 403 | License is administratively disabled. | Treat as unlicensed; tell the user to contact support. |
 | `LICENSE_REVOKED` | 403 | License is revoked. | Treat as unlicensed; do not retry. |
 | `LICENSE_EXPIRED` | 403 | The underlying license has passed its expiry. | Treat as unlicensed; prompt for a new code. |
-| `DEVICE_LIMIT_REACHED` | 409 | All seats are in use by other devices. | Prompt the user to deactivate another device. |
+| `DEVICE_LIMIT_REACHED` | 409 | All seats are in use by other devices. | Direct the user to the public `/devices` page to deactivate another device. |
 | `BAD_REQUEST` | 400 | Request shape invalid. See `details`. | Fix the request; this is an integration bug. |
 | `SERVER_ERROR` | 500 | Server fault. | Transient — retry with backoff; keep any cached token. |
 
@@ -376,7 +376,19 @@ if the device was not currently active.
 > see §8. Deactivate is for "I am moving my license to a different TV", not for
 > "revoke this immediately".
 
-### 5.5 `POST /api/client/restore`
+### 5.5 Device self-service website
+
+An Activation Code Holder can open the deployment's public `/devices` page to
+view active devices and deactivate one device at a time. The page is in Chinese
+and uses the Activation Code as its only credential. It does not put the code in
+the URL or browser storage.
+
+Device Deactivation releases a seat for another activation. It does **not**
+invalidate the Offline License already stored on the deactivated device. If the
+License remains serviceable and a seat is available, that device can activate
+again later with the Activation Code.
+
+### 5.6 `POST /api/client/restore`
 
 Re-obtains the Offline License for a device that **already has an active
 activation**, using only `machine_hash` + `product_code` — **no Activation Code**.
@@ -644,7 +656,7 @@ verification as described above.
 
 | `error` | Endpoints |
 |---|---|
-| `INVALID_CODE` | `activate`, `deactivate` |
+| `INVALID_CODE` | `activate`, `deactivate`, `devices`, `devices/:activationId/deactivate` |
 | `PRODUCT_MISMATCH` | `activate`, `deactivate`, `restore` |
 | `PRODUCT_NOT_FOUND` | `trial`, `evaluate`, `restore` |
 | `NO_ACTIVATION` | `restore` |
@@ -652,6 +664,8 @@ verification as described above.
 | `LICENSE_REVOKED` | `activate`, `restore` |
 | `LICENSE_EXPIRED` | `activate`, `restore` |
 | `DEVICE_LIMIT_REACHED` | `activate` |
+| `DEVICE_NOT_FOUND` | `devices/:activationId/deactivate` |
+| `RATE_LIMIT_EXCEEDED` | `devices`, `devices/:activationId/deactivate` |
 | `TRIAL_INACTIVE` | `trial` |
 | `EVALUATION_INACTIVE` / `EVALUATION_EXPIRED` | `evaluate` |
 | `BAD_REQUEST` | all |

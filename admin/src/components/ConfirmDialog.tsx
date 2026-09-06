@@ -24,6 +24,7 @@ export function ConfirmDialog({
   description,
   body,
   confirmLabel = "Confirm",
+  cancelLabel = "Cancel",
   destructive = false,
   onConfirm,
 }: {
@@ -33,6 +34,7 @@ export function ConfirmDialog({
   description: ReactNode;
   body?: ReactNode;
   confirmLabel?: string;
+  cancelLabel?: string;
   destructive?: boolean;
   onConfirm: () => Promise<void> | void;
 }) {
@@ -61,7 +63,7 @@ export function ConfirmDialog({
         </AlertDialogHeader>
         {body}
         <AlertDialogFooter>
-          <AlertDialogCancel disabled={loading}>Cancel</AlertDialogCancel>
+          <AlertDialogCancel disabled={loading}>{cancelLabel}</AlertDialogCancel>
           <Button
             variant={destructive ? "destructive" : "default"}
             onClick={handleConfirm}
